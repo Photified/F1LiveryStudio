@@ -64,9 +64,8 @@
         <div class="tool-group">
             <label>Studio Mode</label>
             <div class="btn-row">
-                <button id="mode-brush">🖌️ Brush</button>
-                <button id="mode-bucket">🪣 Bucket</button>
-                <button id="mode-decal">⭐ Decal</button>
+                <button id="mode-bucket">🪣 Paint Bucket</button>
+                <button id="mode-decal">⭐ Decal Placement</button>
             </div>
         </div>
 
@@ -75,9 +74,9 @@
             <input type="color" id="paintColor" value="#e10600">
         </div>
 
-        <div class="tool-group">
-            <label>Size / Scale</label>
-            <input type="range" id="toolSize" min="1" max="100" value="15">
+        <div class="tool-group" id="decal-size-wrap" style="display: none;">
+            <label>Decal Scale</label>
+            <input type="range" id="toolSize" min="10" max="500" value="100">
         </div>
 
         <div class="tool-group" id="decal-select-wrap" style="display: none;">
