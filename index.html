@@ -2,32 +2,41 @@
 <html lang="en">
 <head>
     <meta charset="UTF-8">
-    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no, viewport-fit=cover">
     <title>3D F1 Livery Studio Pro</title>
     <link rel="manifest" href="manifest.json">
     <style>
-        body { margin: 0; background: #121212; color: white; font-family: sans-serif; height: 100vh; overflow: hidden; }
+        /* touch-action: none stops pull-to-refresh and unwanted mobile scrolling */
+        body { 
+            margin: 0; background: #121212; color: white; font-family: sans-serif; 
+            height: 100vh; overflow: hidden; 
+            touch-action: none; 
+            overscroll-behavior: none; 
+        }
         
         header {
             position: absolute; top: 0; left: 0; width: 100%;
             background: linear-gradient(to bottom, rgba(26,26,26,0.9), rgba(26,26,26,0));
             padding: 10px 0; display: flex; justify-content: center; z-index: 10; pointer-events: none;
         }
-        .app-logo { width: 800px; height: 100px; object-fit: contain; pointer-events: auto; }
+        .app-logo { width: 90%; max-width: 800px; height: 100px; object-fit: contain; pointer-events: auto; }
 
         #viewport3d { width: 100vw; height: 100vh; position: absolute; top: 0; left: 0; z-index: 1; }
 
+        /* Mobile Responsive Control Center */
         #control-center {
-            position: absolute; bottom: 20px; left: 50%; transform: translateX(-50%);
+            position: absolute; bottom: 15px; left: 50%; transform: translateX(-50%);
             background: rgba(20, 20, 20, 0.85); border: 1px solid #444; backdrop-filter: blur(10px);
-            padding: 15px 25px; border-radius: 12px; display: flex; gap: 20px; align-items: flex-end; z-index: 10;
+            padding: 12px 15px; border-radius: 12px; 
+            display: flex; flex-wrap: wrap; justify-content: center; gap: 15px; align-items: flex-end; 
+            z-index: 10; width: 95%; max-width: 900px;
             box-shadow: 0 10px 30px rgba(0,0,0,0.7);
         }
 
-        .tool-group { display: flex; flex-direction: column; gap: 5px; }
-        .btn-row { display: flex; gap: 5px; align-items: center; }
+        .tool-group { display: flex; flex-direction: column; gap: 5px; align-items: center; }
+        .btn-row { display: flex; flex-wrap: wrap; justify-content: center; gap: 5px; align-items: center; }
         
-        label { font-size: 10px; text-transform: uppercase; color: #aaa; font-weight: bold; letter-spacing: 1px; }
+        label { font-size: 10px; text-transform: uppercase; color: #aaa; font-weight: bold; letter-spacing: 1px; text-align: center; }
         button, select { background: #2a2a2a; color: white; border: 1px solid #555; padding: 8px 12px; border-radius: 6px; font-weight: bold; cursor: pointer; font-size: 13px; transition: 0.2s; }
         button:hover { background: #3a3a3a; border-color: #777; }
         button.active { background: #e10600; border-color: #ff3b30; }
@@ -37,6 +46,16 @@
         
         input[type="color"] { border: none; width: 40px; height: 35px; border-radius: 6px; cursor: pointer; background: none; }
         input[type="range"] { accent-color: #e10600; cursor: pointer; width: 100px; }
+
+        /* Smart shrinking for phones */
+        @media (max-width: 650px) {
+            .app-logo { height: 60px; }
+            #control-center { padding: 10px; gap: 8px; bottom: 10px; }
+            button, select { padding: 6px 10px; font-size: 11px; }
+            .cam-btn { padding: 5px 8px; font-size: 10px; }
+            input[type="range"] { width: 80px; }
+            label { font-size: 9px; }
+        }
     </style>
 </head>
 <body>
@@ -50,22 +69,24 @@
     <div id="control-center">
         
         <div class="tool-group">
-            <label>Camera & Navigation</label>
+            <label>Camera</label>
             <div class="btn-row">
-                <button id="mode-camera" class="active">🎥 Orbit</button>
+                <button class="cam-btn" data-cam="free">Free</button>
                 <button class="cam-btn" data-cam="side">Side</button>
                 <button class="cam-btn" data-cam="front">Front</button>
                 <button class="cam-btn" data-cam="back">Back</button>
                 <button class="cam-btn" data-cam="top">Top</button>
-                <button class="cam-btn" data-cam="iso">45°</button>
+                <button class="cam-btn" data-cam="iso">45° Down</button>
             </div>
         </div>
 
         <div class="tool-group">
             <label>Studio Mode</label>
             <div class="btn-row">
-                <button id="mode-bucket">🪣 Paint Bucket</button>
-                <button id="mode-decal">⭐ Decal Placement</button>
+                <button id="mode-camera" class="active">🎥 Orbit</button>
+                <button id="mode-brush">🖌️ Brush</button>
+                <button id="mode-bucket">🪣 Bucket</button>
+                <button id="mode-decal">⭐ Decal</button>
             </div>
         </div>
 
@@ -74,9 +95,9 @@
             <input type="color" id="paintColor" value="#e10600">
         </div>
 
-        <div class="tool-group" id="decal-size-wrap" style="display: none;">
-            <label>Decal Scale</label>
-            <input type="range" id="toolSize" min="10" max="500" value="100">
+        <div class="tool-group">
+            <label>Size / Scale</label>
+            <input type="range" id="toolSize" min="5" max="3000" value="20">
         </div>
 
         <div class="tool-group" id="decal-select-wrap" style="display: none;">
