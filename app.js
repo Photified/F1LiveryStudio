@@ -40,7 +40,6 @@ const rCtx = renderCanvas.getContext('2d');
 const canvasTexture = new THREE.CanvasTexture(renderCanvas);
 canvasTexture.flipY = false;
 
-// Initialize transparent shell
 bCtx.clearRect(0, 0, 2048, 2048);
 updateRenderCanvas();
 
@@ -125,16 +124,25 @@ ui.mirrorBtn.addEventListener('click', () => {
     ui.mirrorBtn.innerText = isMirrorMode ? "🪞 Mirror: ON" : "🪞 Mirror: OFF";
 });
 
+function removeMeshHierarchy(obj) {
+    if (obj.isGroup) {
+        obj.children.forEach(child => {
+            if (child.geometry) child.geometry.dispose();
+            if (child.material) child.material.dispose();
+        });
+    } else {
+        if (obj.geometry) obj.geometry.dispose();
+        if (obj.material) obj.material.dispose();
+    }
+    scene.remove(obj);
+}
+
 ui.undoBtn.addEventListener('click', () => {
     if (actionHistory.length > 0) {
         const lastAction = actionHistory.pop();
         bCtx.putImageData(lastAction.canvasData, 0, 0);
         updateRenderCanvas();
-        lastAction.meshes.forEach(mesh => {
-            scene.remove(mesh);
-            if (mesh.geometry) mesh.geometry.dispose();
-            if (mesh.material) mesh.material.dispose();
-        });
+        lastAction.meshes.forEach(mesh => removeMeshHierarchy(mesh));
     }
 });
 
@@ -144,11 +152,7 @@ ui.resetBtn.addEventListener('click', () => {
     updateRenderCanvas();
     
     actionHistory.forEach(action => {
-        action.meshes.forEach(mesh => {
-            scene.remove(mesh);
-            if (mesh.geometry) mesh.geometry.dispose();
-            if (mesh.material) mesh.material.dispose();
-        });
+        action.meshes.forEach(mesh => removeMeshHierarchy(mesh));
         action.meshes = [];
     });
     
@@ -225,7 +229,6 @@ function createDecalMaterial(type, color) {
     const texture = new THREE.CanvasTexture(dCanvas);
     texture.anisotropy = renderer.capabilities.getMaxAnisotropy();
 
-    // EXTREME POLYGON OFFSET APPLIED HERE TO PREVENT Z-FIGHTING
     const mat = new THREE.MeshStandardMaterial({
         map: texture, transparent: true, depthTest: true, depthWrite: false, 
         polygonOffset: true, polygonOffsetFactor: -10, polygonOffsetUnits: -10, 
@@ -248,6 +251,7 @@ function getIntersection(e) {
     return intersects.length > 0 ? intersects[0] : null;
 }
 
+// THE FIX: Multi-Mesh Decal Spanning
 function applyDecal(hit, isGhost = false) {
     const position = hit.point;
     const normal = hit.face.normal.clone();
@@ -263,21 +267,31 @@ function applyDecal(hit, isGhost = false) {
     dummy.rotateZ(rot * Math.PI / 180);
 
     const sizeVal = parseInt(ui.size.value) / 100;
-    const projectionDepth = Math.min(sizeVal * 0.2, 0.5); 
+    // Increased projection depth slightly to ensure it jumps across panel gaps
+    const projectionDepth = Math.min(sizeVal * 0.5, 2.0); 
     const scale = new THREE.Vector3(sizeVal, sizeVal, projectionDepth);
 
-    const targetGeoMesh = hit.object.userData.baseMesh || hit.object;
-
-    const decalGeo = new THREE.DecalGeometry(targetGeoMesh, position, dummy.rotation, scale);
     const decalMat = createDecalMaterial(ui.decalType.value, ui.color.value);
-    
-    const decalMesh = new THREE.Mesh(decalGeo, decalMat);
-    if (isGhost) {
-        decalMesh.material = decalMat.clone();
-        decalMesh.material.opacity = 0.5;
-    }
-    scene.add(decalMesh);
-    return decalMesh;
+    const decalGroup = new THREE.Group(); // We group the decal chunks together
+
+    // Loop through ALL panels to ensure the decal spans across cut-lines
+    paintableMeshes.forEach(shell => {
+        const targetGeoMesh = shell.userData.baseMesh;
+        const decalGeo = new THREE.DecalGeometry(targetGeoMesh, position, dummy.rotation, scale);
+        
+        // If the bounding box hit this panel, add it to the group
+        if (decalGeo.attributes.position.count > 0) {
+            const decalMesh = new THREE.Mesh(decalGeo, decalMat);
+            if (isGhost) {
+                decalMesh.material = decalMat.clone();
+                decalMesh.material.opacity = 0.5;
+            }
+            decalGroup.add(decalMesh);
+        }
+    });
+
+    scene.add(decalGroup);
+    return decalGroup;
 }
 
 function applyMirroredDecal(hit, isGhost = false) {
@@ -296,25 +310,32 @@ function applyMirroredDecal(hit, isGhost = false) {
     dummy.rotateZ(rot * Math.PI / 180);
 
     const sizeVal = parseInt(ui.size.value) / 100;
-    const projectionDepth = Math.min(sizeVal * 0.2, 0.5); 
+    const projectionDepth = Math.min(sizeVal * 0.5, 2.0); 
     const scale = new THREE.Vector3(sizeVal, sizeVal, projectionDepth);
 
-    const targetGeoMesh = hit.object.userData.baseMesh || hit.object;
-
-    const decalGeo = new THREE.DecalGeometry(targetGeoMesh, position, dummy.rotation, scale);
     const decalMat = createDecalMaterial(ui.decalType.value, ui.color.value);
-    
-    const mesh = new THREE.Mesh(decalGeo, decalMat);
-    if (isGhost) {
-        mesh.material = decalMat.clone();
-        mesh.material.opacity = 0.5;
-    }
-    scene.add(mesh);
-    return mesh;
+    const decalGroup = new THREE.Group();
+
+    paintableMeshes.forEach(shell => {
+        const targetGeoMesh = shell.userData.baseMesh;
+        const decalGeo = new THREE.DecalGeometry(targetGeoMesh, position, dummy.rotation, scale);
+        
+        if (decalGeo.attributes.position.count > 0) {
+            const decalMesh = new THREE.Mesh(decalGeo, decalMat);
+            if (isGhost) {
+                decalMesh.material = decalMat.clone();
+                decalMesh.material.opacity = 0.5;
+            }
+            decalGroup.add(decalMesh);
+        }
+    });
+
+    scene.add(decalGroup);
+    return decalGroup;
 }
 
 function clearGhosts() {
-    activeGhostMeshes.forEach(mesh => scene.remove(mesh));
+    activeGhostMeshes.forEach(mesh => removeMeshHierarchy(mesh));
     activeGhostMeshes = [];
 }
 
@@ -371,7 +392,7 @@ window.addEventListener('mousedown', (e) => {
         }
         registerMeshesToLastState(createdMeshes);
     } else if (currentMode === 'bucket') {
-        // Shared Material Architecture automatically updates all connected model chunks
+        // THE FIX: Restored isolated materials. Only the clicked panel gets painted.
         const targetMesh = hit.object.userData.baseMesh || hit.object;
         targetMesh.material.color.set(ui.color.value);
     }
@@ -381,7 +402,6 @@ window.addEventListener('mouseup', () => isPainting = false);
 
 // --- 6. Paint Shell Loading System ---
 const loader = new THREE.GLTFLoader();
-const clonedMaterials = {}; // Shared dictionary to prevent chunking
 
 loader.load('scene.gltf', (gltf) => {
     const carModel = gltf.scene;
@@ -394,22 +414,17 @@ loader.load('scene.gltf', (gltf) => {
             
             if (!id.includes('wheel') && !id.includes('tire') && !id.includes('glass')) {
                 
-                // Keep connected model pieces linked so the Bucket tool colors them all at once
+                // ISOLATED MATERIALS: Every mesh chunk gets its own unique material clone.
+                // This allows the Paint Bucket to target specific panels independently.
                 if (node.material) {
-                    const matId = node.material.uuid;
-                    if (!clonedMaterials[matId]) {
-                        clonedMaterials[matId] = node.material.clone();
-                    }
-                    node.material = clonedMaterials[matId];
+                    node.material = node.material.clone();
                     node.material.needsUpdate = true;
                 }
 
                 const shell = node.clone();
-                // Strip shadows from the invisible paint layer to stop jagged acne
                 shell.castShadow = false; 
                 shell.receiveShadow = false;
                 
-                // Aggressive depth offset and alpha discarding
                 shell.material = new THREE.MeshStandardMaterial({
                     map: canvasTexture,
                     transparent: true,
