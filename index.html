@@ -6,96 +6,37 @@
     <title>3D F1 Livery Studio</title>
     <link rel="manifest" href="manifest.json">
     <style>
-        /* Stacks the header on top of the main layout */
-        body { 
-            margin: 0; 
-            background: #121212; 
-            color: white; 
-            font-family: sans-serif; 
-            display: flex; 
-            flex-direction: column; 
-            height: 100vh; 
-            overflow: hidden; 
-        }
+        body { margin: 0; background: #121212; color: white; font-family: sans-serif; height: 100vh; overflow: hidden; }
         
-        /* Global App Header */
         header {
-            width: 100%;
-            background: #1a1a1a;
-            border-bottom: 2px solid #333;
-            padding: 10px 0;
-            display: flex;
-            justify-content: center; /* Horizontally centers the logo */
-            align-items: center;
+            position: absolute; top: 0; left: 0; width: 100%;
+            background: linear-gradient(to bottom, rgba(26,26,26,0.9), rgba(26,26,26,0));
+            padding: 10px 0; display: flex; justify-content: center; z-index: 10; pointer-events: none;
+        }
+        .app-logo { width: 800px; height: 100px; object-fit: contain; pointer-events: auto; }
+
+        /* Full Screen 3D Render Window */
+        #viewport3d { width: 100vw; height: 100vh; position: absolute; top: 0; left: 0; z-index: 1; }
+
+        /* Floating Studio Control Center */
+        #control-center {
+            position: absolute; bottom: 20px; left: 50%; transform: translateX(-50%);
+            background: rgba(20, 20, 20, 0.85); border: 1px solid #444; backdrop-filter: blur(10px);
+            padding: 15px 25px; border-radius: 12px; display: flex; gap: 20px; align-items: center; z-index: 10;
+            box-shadow: 0 10px 30px rgba(0,0,0,0.7);
         }
 
-        /* Enforces your exact dimensions */
-        .app-logo {
-            width: 800px;
-            height: 100px;
-            object-fit: contain; /* Prevents stretching or distortion */
-            display: block;
-        }
-
-        /* Container for the split panels underneath the header */
-        .studio-container {
-            display: flex;
-            flex: 1;
-            width: 100%;
-            overflow: hidden;
-        }
+        .tool-group { display: flex; flex-direction: column; gap: 5px; }
+        .btn-row { display: flex; gap: 5px; }
         
-        /* Left Side: 2D Painting Area */
-        #paint-studio { 
-            width: 50%; 
-            padding: 20px; 
-            display: flex; 
-            flex-direction: column; 
-            background: #1a1a1a; 
-            border-right: 2px solid #333; 
-        }
+        label { font-size: 10px; text-transform: uppercase; color: #aaa; font-weight: bold; tracking: 1px; }
+        button, select { background: #2a2a2a; color: white; border: 1px solid #555; padding: 8px 12px; border-radius: 6px; font-weight: bold; cursor: pointer; font-size: 13px; }
+        button:hover { background: #3a3a3a; border-color: #777; }
+        button.active { background: #e10600; border-color: #ff3b30; }
         
-        #toolbar { 
-            display: flex; 
-            gap: 15px; 
-            margin-bottom: 20px; 
-            background: #222; 
-            padding: 10px; 
-            border-radius: 8px; 
-            align-items: center; 
-        }
-        
-        /* The Canvas (Your UV Map Wrapper) */
-        canvas { 
-            background-color: #ffffff; 
-            border-radius: 4px; 
-            cursor: crosshair; 
-            box-shadow: 0 4px 15px rgba(0,0,0,0.5); 
-            width: 100%; 
-            max-width: 800px;
-            aspect-ratio: 1/1; 
-            margin: 0 auto;
-        }
-        
-        /* Right Side: Photorealistic 3D Viewer */
-        #preview-studio { 
-            width: 50%; 
-            position: relative; 
-            background: radial-gradient(circle, #444 0%, #111 100%); 
-        }
-        
-        model-viewer { 
-            width: 100%; 
-            height: 100%; 
-        }
-        
-        button, input { padding: 8px; border-radius: 4px; border: none; cursor: pointer; }
-        button { background: #e10600; color: white; font-weight: bold; }
-        button:hover { background: #ff1a1a; }
-        label { font-size: 12px; text-transform: uppercase; color: #aaa; font-weight: bold; }
+        input[type="color"] { border: none; width: 40px; height: 35px; border-radius: 6px; cursor: pointer; background: none; }
+        input[type="range"] { accent-color: #e10600; cursor: pointer; }
     </style>
-    
-    <script type="module" src="https://ajax.googleapis.com/ajax/libs/model-viewer/3.3.0/model-viewer.min.js"></script>
 </head>
 <body>
 
@@ -103,38 +44,51 @@
         <img src="logo.png" alt="Livery Studio Logo" class="app-logo">
     </header>
 
-    <div class="studio-container">
-        
-        <div id="paint-studio">
-            <h2 style="margin-top: 0;">🎨 Texture Studio</h2>
-            <div id="toolbar">
-                <div style="display: flex; flex-direction: column; gap: 4px;">
-                    <label>Brush Color</label>
-                    <input type="color" id="brushColor" value="#e10600">
-                </div>
-                <div style="display: flex; flex-direction: column; gap: 4px;">
-                    <label>Brush Size</label>
-                    <input type="range" id="brushSize" min="2" max="50" value="10">
-                </div>
-                <button id="clearBtn" style="margin-left: auto;">Reset Livery</button>
+    <!-- The 3D Paint Booth -->
+    <div id="viewport3d"></div>
+
+    <!-- Floating Control Panel -->
+    <div id="control-center">
+        <div class="tool-group">
+            <label>Studio Mode</label>
+            <div class="btn-row">
+                <button id="mode-camera" class="active">🎥 View/Orbit</button>
+                <button id="mode-brush">🖌️ Brush</button>
+                <button id="mode-bucket">🪣 Bucket</button>
+                <button id="mode-decal">⭐ Decal</button>
             </div>
-            
-            <canvas id="textureCanvas" width="1024" height="1024"></canvas>
         </div>
 
-        <div id="preview-studio">
-            <model-viewer 
-                id="f1-viewer" 
-                src="scene.gltf" 
-                environment-image="neutral" 
-                shadow-intensity="1.5" 
-                camera-controls 
-                auto-rotate>
-            </model-viewer>
+        <div class="tool-group">
+            <label>Color</label>
+            <input type="color" id="paintColor" value="#e10600">
         </div>
 
+        <div class="tool-group" id="brush-size-wrap">
+            <label>Brush Size / Decal Scale</label>
+            <input type="range" id="toolSize" min="5" max="100" value="20">
+        </div>
+
+        <div class="tool-group" id="decal-select-wrap" style="display: none;">
+            <label>Select Decal</label>
+            <select id="decalType">
+                <option value="star">Star Sponsor</option>
+                <option value="stripe">Racing Stripe</option>
+                <option value="circle">Target Roundel</option>
+            </select>
+        </div>
+
+        <div class="tool-group">
+            <label>Actions</label>
+            <button id="resetBtn" style="background: #444;">Reset Car</button>
+        </div>
     </div>
 
+    <!-- Import Core Three.js Ecosystem -->
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/three.js/r128/three.min.js"></script>
+    <script src="https://cdn.jsdelivr.net/npm/three@0.128.0/examples/js/controls/OrbitControls.js"></script>
+    <script src="https://cdn.jsdelivr.net/npm/three@0.128.0/examples/js/loaders/GLTFLoader.js"></script>
+    
     <script src="app.js"></script>
 </body>
 </html>
