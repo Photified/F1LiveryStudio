@@ -3,7 +3,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>3D F1 Livery Studio</title>
+    <title>3D F1 Livery Studio Pro</title>
     <link rel="manifest" href="manifest.json">
     <style>
         body { margin: 0; background: #121212; color: white; font-family: sans-serif; height: 100vh; overflow: hidden; }
@@ -15,27 +15,25 @@
         }
         .app-logo { width: 800px; height: 100px; object-fit: contain; pointer-events: auto; }
 
-        /* Full Screen 3D Render Window */
         #viewport3d { width: 100vw; height: 100vh; position: absolute; top: 0; left: 0; z-index: 1; }
 
-        /* Floating Studio Control Center */
         #control-center {
             position: absolute; bottom: 20px; left: 50%; transform: translateX(-50%);
             background: rgba(20, 20, 20, 0.85); border: 1px solid #444; backdrop-filter: blur(10px);
-            padding: 15px 25px; border-radius: 12px; display: flex; gap: 20px; align-items: center; z-index: 10;
+            padding: 15px 25px; border-radius: 12px; display: flex; gap: 20px; align-items: flex-end; z-index: 10;
             box-shadow: 0 10px 30px rgba(0,0,0,0.7);
         }
 
         .tool-group { display: flex; flex-direction: column; gap: 5px; }
-        .btn-row { display: flex; gap: 5px; }
+        .btn-row { display: flex; gap: 5px; align-items: center; }
         
-        label { font-size: 10px; text-transform: uppercase; color: #aaa; font-weight: bold; tracking: 1px; }
+        label { font-size: 10px; text-transform: uppercase; color: #aaa; font-weight: bold; letter-spacing: 1px; }
         button, select { background: #2a2a2a; color: white; border: 1px solid #555; padding: 8px 12px; border-radius: 6px; font-weight: bold; cursor: pointer; font-size: 13px; }
         button:hover { background: #3a3a3a; border-color: #777; }
         button.active { background: #e10600; border-color: #ff3b30; }
         
         input[type="color"] { border: none; width: 40px; height: 35px; border-radius: 6px; cursor: pointer; background: none; }
-        input[type="range"] { accent-color: #e10600; cursor: pointer; }
+        input[type="range"] { accent-color: #e10600; cursor: pointer; width: 100px; }
     </style>
 </head>
 <body>
@@ -44,15 +42,13 @@
         <img src="logo.png" alt="Livery Studio Logo" class="app-logo">
     </header>
 
-    <!-- The 3D Paint Booth -->
     <div id="viewport3d"></div>
 
-    <!-- Floating Control Panel -->
     <div id="control-center">
         <div class="tool-group">
             <label>Studio Mode</label>
             <div class="btn-row">
-                <button id="mode-camera" class="active">🎥 View/Orbit</button>
+                <button id="mode-camera" class="active">🎥 Orbit</button>
                 <button id="mode-brush">🖌️ Brush</button>
                 <button id="mode-bucket">🪣 Bucket</button>
                 <button id="mode-decal">⭐ Decal</button>
@@ -64,27 +60,34 @@
             <input type="color" id="paintColor" value="#e10600">
         </div>
 
-        <div class="tool-group" id="brush-size-wrap">
-            <label>Brush Size / Decal Scale</label>
-            <input type="range" id="toolSize" min="5" max="100" value="20">
+        <div class="tool-group">
+            <label>Size / Scale</label>
+            <input type="range" id="toolSize" min="5" max="150" value="20">
         </div>
 
         <div class="tool-group" id="decal-select-wrap" style="display: none;">
-            <label>Select Decal</label>
-            <select id="decalType">
-                <option value="star">Star Sponsor</option>
-                <option value="stripe">Racing Stripe</option>
-                <option value="circle">Target Roundel</option>
-            </select>
+            <label>Decal & Rotation</label>
+            <div class="btn-row">
+                <select id="decalType">
+                    <option value="star">⭐ Star</option>
+                    <option value="stripe">⚡ Lightning Stripe</option>
+                    <option value="circle">⭕ Roundel</option>
+                    <option value="checkered">🏁 Checkered Block</option>
+                    <option value="number1">1️⃣ Number 1</option>
+                </select>
+                <input type="range" id="decalRot" min="0" max="360" value="0" title="Rotation">
+            </div>
         </div>
 
         <div class="tool-group">
             <label>Actions</label>
-            <button id="resetBtn" style="background: #444;">Reset Car</button>
+            <div class="btn-row">
+                <button id="undoBtn" style="background: #333;">↩️ Undo</button>
+                <button id="resetBtn" style="background: #444;">Reset</button>
+            </div>
         </div>
     </div>
 
-    <!-- Import Core Three.js Ecosystem -->
     <script src="https://cdnjs.cloudflare.com/ajax/libs/three.js/r128/three.min.js"></script>
     <script src="https://cdn.jsdelivr.net/npm/three@0.128.0/examples/js/controls/OrbitControls.js"></script>
     <script src="https://cdn.jsdelivr.net/npm/three@0.128.0/examples/js/loaders/GLTFLoader.js"></script>
