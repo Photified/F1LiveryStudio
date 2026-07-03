@@ -6,11 +6,64 @@
     <title>3D F1 Livery Studio</title>
     <link rel="manifest" href="manifest.json">
     <style>
-        body { margin: 0; background: #121212; color: white; font-family: sans-serif; display: flex; height: 100vh; overflow: hidden; }
+        /* Stacks the header on top of the main layout */
+        body { 
+            margin: 0; 
+            background: #121212; 
+            color: white; 
+            font-family: sans-serif; 
+            display: flex; 
+            flex-direction: column; 
+            height: 100vh; 
+            overflow: hidden; 
+        }
+        
+        /* Global App Header */
+        header {
+            width: 100%;
+            background: #1a1a1a;
+            border-bottom: 2px solid #333;
+            padding: 10px 0;
+            display: flex;
+            justify-content: center; /* Horizontally centers the logo */
+            align-items: center;
+        }
+
+        /* Enforces your exact dimensions */
+        .app-logo {
+            width: 800px;
+            height: 100px;
+            object-fit: contain; /* Prevents stretching or distortion */
+            display: block;
+        }
+
+        /* Container for the split panels underneath the header */
+        .studio-container {
+            display: flex;
+            flex: 1;
+            width: 100%;
+            overflow: hidden;
+        }
         
         /* Left Side: 2D Painting Area */
-        #paint-studio { width: 50%; padding: 20px; display: flex; flex-direction: column; background: #1a1a1a; border-right: 2px solid #333; }
-        #toolbar { display: flex; gap: 15px; margin-bottom: 20px; background: #222; padding: 10px; border-radius: 8px; align-items: center; }
+        #paint-studio { 
+            width: 50%; 
+            padding: 20px; 
+            display: flex; 
+            flex-direction: column; 
+            background: #1a1a1a; 
+            border-right: 2px solid #333; 
+        }
+        
+        #toolbar { 
+            display: flex; 
+            gap: 15px; 
+            margin-bottom: 20px; 
+            background: #222; 
+            padding: 10px; 
+            border-radius: 8px; 
+            align-items: center; 
+        }
         
         /* The Canvas (Your UV Map Wrapper) */
         canvas { 
@@ -25,8 +78,16 @@
         }
         
         /* Right Side: Photorealistic 3D Viewer */
-        #preview-studio { width: 50%; position: relative; background: radial-gradient(circle, #444 0%, #111 100%); }
-        model-viewer { width: 100%; height: 100%; }
+        #preview-studio { 
+            width: 50%; 
+            position: relative; 
+            background: radial-gradient(circle, #444 0%, #111 100%); 
+        }
+        
+        model-viewer { 
+            width: 100%; 
+            height: 100%; 
+        }
         
         button, input { padding: 8px; border-radius: 4px; border: none; cursor: pointer; }
         button { background: #e10600; color: white; font-weight: bold; }
@@ -38,32 +99,40 @@
 </head>
 <body>
 
-    <div id="paint-studio">
-        <h2 style="margin-top: 0;">🎨 Texture Studio</h2>
-        <div id="toolbar">
-            <div style="display: flex; flex-direction: column; gap: 4px;">
-                <label>Brush Color</label>
-                <input type="color" id="brushColor" value="#e10600">
-            </div>
-            <div style="display: flex; flex-direction: column; gap: 4px;">
-                <label>Brush Size</label>
-                <input type="range" id="brushSize" min="2" max="50" value="10">
-            </div>
-            <button id="clearBtn" style="margin-left: auto;">Reset Livery</button>
-        </div>
-        
-        <canvas id="textureCanvas" width="1024" height="1024"></canvas>
-    </div>
+    <header>
+        <img src="logo.png" alt="Livery Studio Logo" class="app-logo">
+    </header>
 
-    <div id="preview-studio">
-        <model-viewer 
-            id="f1-viewer" 
-            src="scene.gltf" 
-            environment-image="neutral" 
-            shadow-intensity="1.5" 
-            camera-controls 
-            auto-rotate>
-        </model-viewer>
+    <div class="studio-container">
+        
+        <div id="paint-studio">
+            <h2 style="margin-top: 0;">🎨 Texture Studio</h2>
+            <div id="toolbar">
+                <div style="display: flex; flex-direction: column; gap: 4px;">
+                    <label>Brush Color</label>
+                    <input type="color" id="brushColor" value="#e10600">
+                </div>
+                <div style="display: flex; flex-direction: column; gap: 4px;">
+                    <label>Brush Size</label>
+                    <input type="range" id="brushSize" min="2" max="50" value="10">
+                </div>
+                <button id="clearBtn" style="margin-left: auto;">Reset Livery</button>
+            </div>
+            
+            <canvas id="textureCanvas" width="1024" height="1024"></canvas>
+        </div>
+
+        <div id="preview-studio">
+            <model-viewer 
+                id="f1-viewer" 
+                src="scene.gltf" 
+                environment-image="neutral" 
+                shadow-intensity="1.5" 
+                camera-controls 
+                auto-rotate>
+            </model-viewer>
+        </div>
+
     </div>
 
     <script src="app.js"></script>
