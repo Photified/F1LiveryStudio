@@ -29,12 +29,10 @@ controls.enableDamping = true;
 controls.dampingFactor = 0.05;
 
 // --- 3. DUAL-CANVAS ARCHITECTURE & UNDO HISTORY ---
-// Base Canvas: Stores permanent committed paint
 const baseCanvas = document.createElement('canvas');
 baseCanvas.width = 2048; baseCanvas.height = 2048;
 const bCtx = baseCanvas.getContext('2d');
 
-// Render Canvas: Composites Base + Previews for Three.js
 const renderCanvas = document.createElement('canvas');
 renderCanvas.width = 2048; renderCanvas.height = 2048;
 const rCtx = renderCanvas.getContext('2d');
@@ -42,7 +40,6 @@ const rCtx = renderCanvas.getContext('2d');
 const canvasTexture = new THREE.CanvasTexture(renderCanvas);
 canvasTexture.flipY = false;
 
-// Undo Stack (Limits memory to 5 previous states to save RAM)
 const undoStack = [];
 const MAX_UNDO = 5;
 
@@ -55,16 +52,15 @@ const baseMapImage = new Image();
 baseMapImage.src = 'textures/Livery_baseColor.png';
 baseMapImage.onload = () => {
     bCtx.drawImage(baseMapImage, 0, 0, 2048, 2048);
-    updateRenderCanvas(); // Push base image to 3D model
+    updateRenderCanvas(); 
 };
 
-// Pushes base canvas to render canvas (and draws ghost if requested)
 function updateRenderCanvas(ghostDrawCallback = null) {
     rCtx.clearRect(0, 0, 2048, 2048);
-    rCtx.drawImage(baseCanvas, 0, 0); // Copy permanent paint
+    rCtx.drawImage(baseCanvas, 0, 0); 
     
     if (ghostDrawCallback) {
-        rCtx.globalAlpha = 0.5; // 50% transparency for preview
+        rCtx.globalAlpha = 0.5; 
         ghostDrawCallback(rCtx);
         rCtx.globalAlpha = 1.0;
     }
@@ -98,7 +94,6 @@ function setMode(mode) {
     ui.decalWrap.style.display = (mode === 'decal') ? 'flex' : 'none';
     controls.enabled = (mode === 'camera');
     
-    // Clear any lingering ghost previews when changing modes
     updateRenderCanvas(); 
 }
 
@@ -112,7 +107,6 @@ ui.bucket.addEventListener('click', () => {
     bCtx.fillRect(0, 0, 2048, 2048);
     updateRenderCanvas();
     
-    // Ensure all target meshes have the texture loaded
     paintableMeshes.forEach(m => {
         if (m.material) { m.material.map = canvasTexture; m.material.needsUpdate = true; }
     });
@@ -139,7 +133,7 @@ function drawShape(ctx, x, y, size, rotation, type, color) {
     ctx.fillStyle = color;
     ctx.strokeStyle = color;
     ctx.translate(x, y);
-    ctx.rotate(rotation * Math.PI / 180); // Apply rotation
+    ctx.rotate(rotation * Math.PI / 180); 
     
     if (type === 'star') {
         ctx.beginPath();
@@ -150,7 +144,6 @@ function drawShape(ctx, x, y, size, rotation, type, color) {
         ctx.closePath();
         ctx.fill();
     } else if (type === 'stripe') {
-        // Sharp aerodynamic stripe
         ctx.beginPath();
         ctx.moveTo(-size/2, -size*2);
         ctx.lineTo(size/2, -size*1.5);
@@ -163,14 +156,56 @@ function drawShape(ctx, x, y, size, rotation, type, color) {
     } else if (type === 'checkered') {
         const sq = size / 2;
         ctx.fillRect(-sq, -sq, sq, sq); ctx.fillRect(0, 0, sq, sq);
-        ctx.fillStyle = "#ffffff"; // Force alternate checker color
+        ctx.fillStyle = "#ffffff"; 
         ctx.fillRect(0, -sq, sq, sq); ctx.fillRect(-sq, 0, sq, sq);
     } else if (type === 'number1') {
         ctx.font = `bold ${size*2}px Arial`;
         ctx.textAlign = 'center';
         ctx.textBaseline = 'middle';
         ctx.fillText("1", 0, 0);
+    } else if (type === 'triangle') {
+        ctx.beginPath();
+        ctx.moveTo(0, -size);
+        ctx.lineTo(size * 0.866, size * 0.5);
+        ctx.lineTo(-size * 0.866, size * 0.5);
+        ctx.closePath();
+        ctx.fill();
+    } else if (type === 'hexagon') {
+        ctx.beginPath();
+        for (let i = 0; i < 6; i++) {
+            ctx.lineTo(size * Math.cos(i * Math.PI / 3), size * Math.sin(i * Math.PI / 3));
+        }
+        ctx.closePath();
+        ctx.fill();
+    } else if (type === 'chevron') {
+        ctx.beginPath();
+        ctx.moveTo(-size/2, -size/2);
+        ctx.lineTo(size/2, 0);
+        ctx.lineTo(-size/2, size/2);
+        ctx.lineTo(-size/4, 0);
+        ctx.closePath();
+        ctx.fill();
+    } else if (type === 'diamond') {
+        ctx.beginPath();
+        ctx.moveTo(0, -size);
+        ctx.lineTo(size/1.5, 0);
+        ctx.lineTo(0, size);
+        ctx.lineTo(-size/1.5, 0);
+        ctx.closePath();
+        ctx.fill();
+    } else if (type === 'swoosh') {
+        ctx.beginPath();
+        ctx.moveTo(-size, size/2);
+        ctx.quadraticCurveTo(0, -size, size, -size/2);
+        ctx.quadraticCurveTo(size/2, -size/4, -size, size/2);
+        ctx.closePath();
+        ctx.fill();
+    } else if (type === 'cross') {
+        const w = size / 3;
+        ctx.fillRect(-w/2, -size, w, size*2);
+        ctx.fillRect(-size, -w/2, size*2, w);
     }
+    
     ctx.restore();
 }
 
@@ -187,13 +222,12 @@ function getIntersection(e) {
     return intersects.length > 0 ? intersects[0] : null;
 }
 
-// Hover/Preview Logic (Triggers Ghosting)
 window.addEventListener('mousemove', (e) => {
     if (currentMode === 'camera') return;
     
     const hit = getIntersection(e);
     if (!hit || !hit.uv) {
-        if (!isPainting) updateRenderCanvas(); // Clear ghost if aiming off car
+        if (!isPainting) updateRenderCanvas(); 
         return;
     }
 
@@ -203,7 +237,6 @@ window.addEventListener('mousemove', (e) => {
     const color = ui.color.value;
 
     if (currentMode === 'brush' && isPainting) {
-        // Active Brushing (Commit directly to Base)
         bCtx.fillStyle = color;
         bCtx.beginPath();
         bCtx.arc(cX, cY, size, 0, Math.PI*2);
@@ -211,7 +244,6 @@ window.addEventListener('mousemove', (e) => {
         updateRenderCanvas();
     } 
     else if (currentMode === 'brush' && !isPainting) {
-        // Brush Cursor Preview
         updateRenderCanvas((ctx) => {
             ctx.beginPath();
             ctx.arc(cX, cY, size, 0, Math.PI*2);
@@ -220,23 +252,19 @@ window.addEventListener('mousemove', (e) => {
         });
     }
     else if (currentMode === 'decal') {
-        // Decal Ghost Preview
         const rot = parseInt(ui.decalRot.value);
         updateRenderCanvas((ctx) => drawShape(ctx, cX, cY, size*2, rot, ui.decalType.value, color));
     }
 });
 
-// Commit Logic (Triggers Permanent Draw)
 window.addEventListener('mousedown', (e) => {
     if (currentMode === 'camera') return;
     
     const hit = getIntersection(e);
     if (!hit || !hit.uv) return;
 
-    // Save history BEFORE making the new permanent mark
     saveState();
     
-    // Ensure material is actively tracking our canvas
     if (hit.object.material && hit.object.material.map !== canvasTexture) {
         hit.object.material.map = canvasTexture;
         hit.object.material.needsUpdate = true;
