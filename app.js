@@ -46,7 +46,6 @@ const MAX_UNDO = 10;
 
 function saveState() {
     if (actionHistory.length >= MAX_UNDO) actionHistory.shift();
-    // We save the canvas state, and leave a placeholder for meshes if a decal is added
     actionHistory.push({ 
         type: 'state', 
         canvasData: bCtx.getImageData(0, 0, 2048, 2048),
@@ -133,7 +132,6 @@ ui.undoBtn.addEventListener('click', () => {
         const lastAction = actionHistory.pop();
         bCtx.putImageData(lastAction.canvasData, 0, 0);
         updateRenderCanvas();
-        // Remove any 3D decals that were applied in this step
         lastAction.meshes.forEach(mesh => {
             scene.remove(mesh);
             if (mesh.geometry) mesh.geometry.dispose();
@@ -147,7 +145,6 @@ ui.resetBtn.addEventListener('click', () => {
     bCtx.clearRect(0, 0, 2048, 2048);
     bCtx.drawImage(baseMapImage, 0, 0, 2048, 2048);
     updateRenderCanvas();
-    // Wipe all historical meshes from scene
     actionHistory.forEach(action => {
         action.meshes.forEach(mesh => {
             scene.remove(mesh);
@@ -158,7 +155,6 @@ ui.resetBtn.addEventListener('click', () => {
     });
 });
 
-// Camera Presets
 const camViews = {
     side: new THREE.Vector3(10, 0.5, 0),
     front: new THREE.Vector3(0, 0.5, 10),
@@ -179,7 +175,7 @@ document.querySelectorAll('.cam-btn').forEach(btn => {
     });
 });
 
-// --- 4. 2D Geometry Drawer (For Decal Materials) ---
+// --- 4. 2D Geometry Drawer ---
 function drawShape(ctx, x, y, size, type, color) {
     ctx.save(); ctx.fillStyle = color; ctx.translate(x, y);
     if (type === 'star') {
@@ -220,10 +216,14 @@ function createDecalMaterial(type, color) {
     if (!window.decalCache) window.decalCache = {};
 
     const dCanvas = document.createElement('canvas');
-    dCanvas.width = 512; dCanvas.height = 512;
-    drawShape(dCanvas.getContext('2d'), 256, 256, 240, type, color);
+    // MASSIVE UPGRADE: 2048x2048 resolution for razor sharp decals at extreme scale
+    dCanvas.width = 2048; dCanvas.height = 2048;
+    drawShape(dCanvas.getContext('2d'), 1024, 1024, 960, type, color);
 
     const texture = new THREE.CanvasTexture(dCanvas);
+    // Anisotropic filtering prevents the decal from blurring when viewed at an angle
+    texture.anisotropy = renderer.capabilities.getMaxAnisotropy();
+
     const mat = new THREE.MeshStandardMaterial({
         map: texture, transparent: true, depthTest: true, depthWrite: false, 
         polygonOffset: true, polygonOffsetFactor: -4, wireframe: false, roughness: 0.2
@@ -279,7 +279,11 @@ function applyDecal(hit, isGhost = false, flipRotation = false) {
     dummy.rotateZ(rot * Math.PI / 180);
 
     const sizeVal = parseInt(ui.size.value) / 100;
-    const scale = new THREE.Vector3(sizeVal, sizeVal, sizeVal);
+    
+    // CAPPED PROJECTION DEPTH: 
+    // Limits the Z-axis laser so it doesn't punch entirely through the car to the other side
+    const projectionDepth = Math.min(sizeVal, 2.0); 
+    const scale = new THREE.Vector3(sizeVal, sizeVal, projectionDepth);
 
     const decalGeo = new THREE.DecalGeometry(hit.object, position, dummy.rotation, scale);
     const decalMat = createDecalMaterial(ui.decalType.value, ui.color.value);
@@ -316,7 +320,6 @@ window.addEventListener('mousemove', (e) => {
 
     if (currentMode === 'brush') {
         if (isPainting && hit.uv) {
-            // Commit stroke to canvas immediately
             const cX = hit.uv.x * 2048; const cY = hit.uv.y * 2048;
             bCtx.fillStyle = ui.color.value; bCtx.beginPath(); bCtx.arc(cX, cY, parseInt(ui.size.value)/5, 0, Math.PI*2); bCtx.fill();
             
@@ -329,7 +332,6 @@ window.addEventListener('mousemove', (e) => {
             }
             updateRenderCanvas();
         } else if (!isPainting) {
-            // Draw Brush Preview Ghost
             updateRenderCanvas((ctx) => {
                 if (hit.uv) {
                     ctx.fillStyle = ui.color.value; ctx.beginPath(); ctx.arc(hit.uv.x * 2048, hit.uv.y * 2048, parseInt(ui.size.value)/5, 0, Math.PI*2); ctx.fill();
@@ -343,7 +345,6 @@ window.addEventListener('mousemove', (e) => {
             });
         }
     } else if (currentMode === 'decal' && !isPainting) {
-        // Draw 3D Decal Ghost
         activeGhostMeshes.push(applyDecal(hit, true, false));
         if (isMirrorMode) {
             const mHit = getMirroredHit(hit);
