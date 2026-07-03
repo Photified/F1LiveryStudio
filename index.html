@@ -22,6 +22,7 @@
         .app-logo { width: 90%; max-width: 800px; height: 100px; object-fit: contain; pointer-events: auto; }
 
         #viewport3d { width: 100vw; height: 100vh; position: absolute; top: 0; left: 0; z-index: 1; }
+        #viewport3d canvas { touch-action: none !important; outline: none; }
 
         /* Mobile Responsive Control Center */
         #control-center {
@@ -53,7 +54,7 @@
             #control-center { padding: 10px; gap: 8px; bottom: 10px; }
             button, select { padding: 6px 10px; font-size: 11px; }
             .cam-btn { padding: 5px 8px; font-size: 10px; }
-            input[type="range"] { width: 80px; }
+            input[type="range"] { width: 70px; }
             label { font-size: 9px; }
         }
     </style>
@@ -101,20 +102,17 @@
         </div>
 
         <div class="tool-group" id="decal-select-wrap" style="display: none;">
-            <label>Decal & Rotation</label>
+            <label>Decal Settings</label>
             <div class="btn-row">
                 <select id="decalType">
                     <option value="star">⭐ Star</option>
-                    <option value="stripe">⚡ Lightning Stripe</option>
+                    <option value="stripe">⚡ Stripe</option>
                     <option value="circle">⭕ Roundel</option>
                     <option value="checkered">🏁 Checkered</option>
                     <option value="number1">1️⃣ Number 1</option>
                     <option value="triangle">🔺 Triangle</option>
                     <option value="hexagon">⬢ Hexagon</option>
-                    <option value="chevron">⏩ Chevron</option>
-                    <option value="diamond">♦️ Diamond</option>
-                    <option value="swoosh">🌙 Racing Swoosh</option>
-                    <option value="cross">➕ Cross</option>
+                    <option value="swoosh">🌙 Swoosh</option>
                 </select>
                 <input type="range" id="decalRot" min="0" max="360" value="0" title="Rotation">
             </div>

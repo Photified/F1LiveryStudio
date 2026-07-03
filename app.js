@@ -4,8 +4,6 @@ const scene = new THREE.Scene();
 scene.background = new THREE.Color('#1a1a1a');
 
 const camera = new THREE.PerspectiveCamera(45, window.innerWidth / window.innerHeight, 0.1, 100);
-camera.position.set(10, 0.5, 0); 
-
 const renderer = new THREE.WebGLRenderer({ antialias: true, alpha: true });
 renderer.setSize(window.innerWidth, window.innerHeight);
 renderer.setPixelRatio(Math.min(window.devicePixelRatio, 2));
@@ -28,7 +26,29 @@ controls.enableDamping = true;
 controls.dampingFactor = 0.05;
 controls.target.set(0, -0.2, 0); 
 
-// --- 2. Base Canvas (For Brush/Bucket Skins) ---
+// Dynamic Camera Distance based on screen width
+function getCamDist() { return window.innerWidth < 800 ? 18 : 10; }
+
+function updateCameraTo(view) {
+    if (view === 'free') return;
+    const d = getCamDist();
+    const views = {
+        side: new THREE.Vector3(d, 0.5, 0),
+        front: new THREE.Vector3(0, 0.5, d),
+        back: new THREE.Vector3(0, 0.5, -d),
+        top: new THREE.Vector3(0, d, 0),
+        iso: new THREE.Vector3(-d*0.7, d*0.5, d*0.7)
+    };
+    if (views[view]) {
+        camera.position.copy(views[view]);
+        camera.lookAt(0, -0.2, 0);
+        controls.target.set(0, -0.2, 0);
+        controls.update();
+    }
+}
+updateCameraTo('iso'); // Initial perspective
+
+// --- 2. Base Canvas (For Brush) ---
 const baseCanvas = document.createElement('canvas');
 baseCanvas.width = 2048; baseCanvas.height = 2048;
 const bCtx = baseCanvas.getContext('2d');
@@ -42,21 +62,21 @@ canvasTexture.flipY = false;
 
 // --- Unified Undo History Stack ---
 const actionHistory = []; 
-const MAX_UNDO = 10;
+const MAX_UNDO = 15;
 
-function saveState() {
+function saveCanvasState() {
     if (actionHistory.length >= MAX_UNDO) actionHistory.shift();
-    actionHistory.push({ 
-        type: 'state', 
-        canvasData: bCtx.getImageData(0, 0, 2048, 2048),
-        meshes: [] 
-    });
+    actionHistory.push({ type: 'brush', canvasData: bCtx.getImageData(0, 0, 2048, 2048) });
 }
 
-function registerMeshesToLastState(meshes) {
-    if (actionHistory.length > 0) {
-        actionHistory[actionHistory.length - 1].meshes.push(...meshes);
-    }
+function saveBucketState(mesh) {
+    if (actionHistory.length >= MAX_UNDO) actionHistory.shift();
+    actionHistory.push({ type: 'bucket', mesh: mesh, oldColor: mesh.material.color.getHex() });
+}
+
+function saveDecalState(groups) {
+    if (actionHistory.length >= MAX_UNDO) actionHistory.shift();
+    actionHistory.push({ type: 'decal', groups: groups });
 }
 
 const baseMapImage = new Image();
@@ -105,13 +125,13 @@ function setMode(mode) {
     ['camera', 'brush', 'bucket', 'decal'].forEach(m => ui[m].classList.remove('active'));
     ui[mode].classList.add('active');
     ui.decalWrap.style.display = (mode === 'decal') ? 'flex' : 'none';
-    controls.enabled = (mode === 'camera');
     clearGhosts();
     updateRenderCanvas(); 
 }
 
 ui.camera.addEventListener('click', () => setMode('camera'));
 ui.brush.addEventListener('click', () => setMode('brush'));
+ui.bucket.addEventListener('click', () => setMode('bucket'));
 ui.decal.addEventListener('click', () => setMode('decal'));
 
 ui.mirrorBtn.addEventListener('click', () => {
@@ -120,58 +140,54 @@ ui.mirrorBtn.addEventListener('click', () => {
     ui.mirrorBtn.innerText = isMirrorMode ? "🪞 Mirror: ON" : "🪞 Mirror: OFF";
 });
 
-ui.bucket.addEventListener('click', () => {
-    saveState();
-    bCtx.fillStyle = ui.color.value;
-    bCtx.fillRect(0, 0, 2048, 2048);
-    updateRenderCanvas();
-});
+function removeMeshHierarchy(obj) {
+    if (!obj) return;
+    if (obj.isGroup) {
+        obj.children.forEach(child => {
+            if (child.geometry) child.geometry.dispose();
+            if (child.material) child.material.dispose();
+        });
+    } else {
+        if (obj.geometry) obj.geometry.dispose();
+        if (obj.material) obj.material.dispose();
+    }
+    scene.remove(obj);
+}
 
 ui.undoBtn.addEventListener('click', () => {
-    if (actionHistory.length > 0) {
-        const lastAction = actionHistory.pop();
+    if (actionHistory.length === 0) return;
+    const lastAction = actionHistory.pop();
+    
+    if (lastAction.type === 'brush') {
         bCtx.putImageData(lastAction.canvasData, 0, 0);
         updateRenderCanvas();
-        lastAction.meshes.forEach(mesh => {
-            scene.remove(mesh);
-            if (mesh.geometry) mesh.geometry.dispose();
-            if (mesh.material) mesh.material.dispose();
-        });
+    } else if (lastAction.type === 'bucket') {
+        lastAction.mesh.material.color.setHex(lastAction.oldColor);
+    } else if (lastAction.type === 'decal') {
+        lastAction.groups.forEach(group => removeMeshHierarchy(group));
     }
 });
 
 ui.resetBtn.addEventListener('click', () => {
-    saveState();
+    saveCanvasState();
     bCtx.clearRect(0, 0, 2048, 2048);
     bCtx.drawImage(baseMapImage, 0, 0, 2048, 2048);
     updateRenderCanvas();
+    
     actionHistory.forEach(action => {
-        action.meshes.forEach(mesh => {
-            scene.remove(mesh);
-            if (mesh.geometry) mesh.geometry.dispose();
-            if (mesh.material) mesh.material.dispose();
-        });
-        action.meshes = [];
+        if (action.type === 'decal') action.groups.forEach(group => removeMeshHierarchy(group));
+    });
+    
+    paintableMeshes.forEach(mesh => {
+        if (mesh.material) mesh.material.color.setHex(0xffffff);
     });
 });
 
-const camViews = {
-    side: new THREE.Vector3(10, 0.5, 0),
-    front: new THREE.Vector3(0, 0.5, 10),
-    back: new THREE.Vector3(0, 0.5, -10),
-    top: new THREE.Vector3(0, 10, 0),
-    iso: new THREE.Vector3(-7, 5, 7)
-};
 document.querySelectorAll('.cam-btn').forEach(btn => {
     btn.addEventListener('click', (e) => {
         const view = e.target.getAttribute('data-cam');
-        if (view === 'free') return setMode('camera');
-        if (camViews[view]) {
-            camera.position.copy(camViews[view]);
-            camera.lookAt(0, -0.2, 0);
-            controls.target.set(0, -0.2, 0);
-            controls.update();
-        }
+        if (view === 'free') setMode('camera');
+        else updateCameraTo(view);
     });
 });
 
@@ -216,12 +232,10 @@ function createDecalMaterial(type, color) {
     if (!window.decalCache) window.decalCache = {};
 
     const dCanvas = document.createElement('canvas');
-    // MASSIVE UPGRADE: 2048x2048 resolution for razor sharp decals at extreme scale
     dCanvas.width = 2048; dCanvas.height = 2048;
     drawShape(dCanvas.getContext('2d'), 1024, 1024, 960, type, color);
 
     const texture = new THREE.CanvasTexture(dCanvas);
-    // Anisotropic filtering prevents the decal from blurring when viewed at an angle
     texture.anisotropy = renderer.capabilities.getMaxAnisotropy();
 
     const mat = new THREE.MeshStandardMaterial({
@@ -232,15 +246,18 @@ function createDecalMaterial(type, color) {
     return mat;
 }
 
-// --- 5. Projector & Raycast Engine ---
+// --- 5. Projector & Raycast Engine (Mobile Native) ---
 const raycaster = new THREE.Raycaster();
 const mirrorRaycaster = new THREE.Raycaster();
 const mouseVector = new THREE.Vector2();
+const canvasEl = renderer.domElement;
 
-function getIntersection(e) {
+function getIntersection(clientX, clientY) {
     if (paintableMeshes.length === 0) return null;
-    mouseVector.x = (e.clientX / window.innerWidth) * 2 - 1;
-    mouseVector.y = -(e.clientY / window.innerHeight) * 2 + 1;
+    const rect = canvasEl.getBoundingClientRect();
+    mouseVector.x = ((clientX - rect.left) / rect.width) * 2 - 1;
+    mouseVector.y = -((clientY - rect.top) / rect.height) * 2 + 1;
+    
     raycaster.setFromCamera(mouseVector, camera);
     const intersects = raycaster.intersectObjects(paintableMeshes, true);
     return intersects.length > 0 ? intersects[0] : null;
@@ -264,14 +281,11 @@ function getMirroredHit(hit) {
 
 function applyDecal(hit, isGhost = false, flipRotation = false) {
     const position = hit.point;
-    const normal = hit.face.normal.clone();
-
     const dummy = new THREE.Object3D();
     dummy.position.copy(position);
     
     const normalMatrix = new THREE.Matrix3().getNormalMatrix(hit.object.matrixWorld);
-    const worldNormal = normal.clone().applyMatrix3(normalMatrix).normalize();
-    
+    const worldNormal = hit.face.normal.clone().applyMatrix3(normalMatrix).normalize();
     dummy.lookAt(position.clone().add(worldNormal));
     
     let rot = parseInt(ui.decalRot.value);
@@ -279,137 +293,155 @@ function applyDecal(hit, isGhost = false, flipRotation = false) {
     dummy.rotateZ(rot * Math.PI / 180);
 
     const sizeVal = parseInt(ui.size.value) / 100;
-    
-    // CAPPED PROJECTION DEPTH: 
-    // Limits the Z-axis laser so it doesn't punch entirely through the car to the other side
     const projectionDepth = Math.min(sizeVal, 2.0); 
     const scale = new THREE.Vector3(sizeVal, sizeVal, projectionDepth);
 
-    const decalGeo = new THREE.DecalGeometry(hit.object, position, dummy.rotation, scale);
     const decalMat = createDecalMaterial(ui.decalType.value, ui.color.value);
-    
-    if (isGhost) {
-        const ghostMat = decalMat.clone();
-        ghostMat.opacity = 0.5;
-        const ghostMesh = new THREE.Mesh(decalGeo, ghostMat);
-        scene.add(ghostMesh);
-        return ghostMesh; 
-    } else {
-        const decalMesh = new THREE.Mesh(decalGeo, decalMat);
-        scene.add(decalMesh);
-        return decalMesh;
-    }
+    const decalGroup = new THREE.Group(); 
+
+    paintableMeshes.forEach(mesh => {
+        const decalGeo = new THREE.DecalGeometry(mesh, position, dummy.rotation, scale);
+        if (decalGeo.attributes.position.count > 0) {
+            const decalMesh = new THREE.Mesh(decalGeo, decalMat);
+            if (isGhost) {
+                decalMesh.material = decalMat.clone();
+                decalMesh.material.opacity = 0.5;
+            }
+            decalMesh.receiveShadow = true; 
+            decalGroup.add(decalMesh);
+        }
+    });
+
+    scene.add(decalGroup);
+    return decalGroup;
 }
 
 function clearGhosts() {
-    activeGhostMeshes.forEach(mesh => scene.remove(mesh));
+    activeGhostMeshes.forEach(group => removeMeshHierarchy(group));
     activeGhostMeshes = [];
 }
 
-// POINTER EVENTS: Handles Mouse, Touch, and Stylus natively
-window.addEventListener('pointermove', (e) => {
-    // Stop painting if touching UI elements
-    if (e.target.closest('#control-center') || e.target.closest('header')) return;
+function executeBrush(hit) {
+    const cX = hit.uv.x * 2048; const cY = hit.uv.y * 2048;
+    bCtx.fillStyle = ui.color.value; bCtx.beginPath(); bCtx.arc(cX, cY, parseInt(ui.size.value)/5, 0, Math.PI*2); bCtx.fill();
     
-    if (currentMode === 'camera') return;
-    
-    clearGhosts();
-    
-    const hit = getIntersection(e);
-    if (!hit) {
-        if (!isPainting) updateRenderCanvas();
-        return;
+    if (isMirrorMode) {
+        const mHit = getMirroredHit(hit);
+        if (mHit && mHit.uv) {
+            const mx = mHit.uv.x * 2048; const my = mHit.uv.y * 2048;
+            bCtx.beginPath(); bCtx.arc(mx, my, parseInt(ui.size.value)/5, 0, Math.PI*2); bCtx.fill();
+        }
     }
+    updateRenderCanvas();
+}
+
+// TAP vs DRAG Logic Engine for Mobile
+let pointerDownPos = new THREE.Vector2();
+let isDragging = false;
+
+canvasEl.addEventListener('pointerdown', (e) => {
+    if (!e.isPrimary) return; 
+    
+    pointerDownPos.set(e.clientX, e.clientY);
+    isDragging = false;
 
     if (currentMode === 'brush') {
-        if (isPainting && hit.uv) {
-            const cX = hit.uv.x * 2048; const cY = hit.uv.y * 2048;
-            bCtx.fillStyle = ui.color.value; bCtx.beginPath(); bCtx.arc(cX, cY, parseInt(ui.size.value)/5, 0, Math.PI*2); bCtx.fill();
-            
+        controls.enabled = false; // Dragging paints
+        const hit = getIntersection(e.clientX, e.clientY);
+        if (hit && hit.uv) {
+            isPainting = true;
+            saveCanvasState();
+            executeBrush(hit);
+        }
+    } else {
+        controls.enabled = true; // Dragging orbits for Decal and Bucket
+    }
+});
+
+canvasEl.addEventListener('pointermove', (e) => {
+    if (!e.isPrimary) return;
+    
+    if (pointerDownPos.distanceTo(new THREE.Vector2(e.clientX, e.clientY)) > 5) {
+        isDragging = true;
+    }
+
+    if (e.pointerType === 'mouse' && currentMode === 'decal' && !isDragging) {
+        clearGhosts();
+        const hit = getIntersection(e.clientX, e.clientY);
+        if (hit) {
+            activeGhostMeshes.push(applyDecal(hit, true, false));
             if (isMirrorMode) {
                 const mHit = getMirroredHit(hit);
-                if (mHit && mHit.uv) {
-                    const mx = mHit.uv.x * 2048; const my = mHit.uv.y * 2048;
-                    bCtx.beginPath(); bCtx.arc(mx, my, parseInt(ui.size.value)/5, 0, Math.PI*2); bCtx.fill();
-                }
+                if (mHit) activeGhostMeshes.push(applyDecal(mHit, true, true));
             }
-            updateRenderCanvas();
-        } else if (!isPainting) {
-            updateRenderCanvas((ctx) => {
-                if (hit.uv) {
-                    ctx.fillStyle = ui.color.value; ctx.beginPath(); ctx.arc(hit.uv.x * 2048, hit.uv.y * 2048, parseInt(ui.size.value)/5, 0, Math.PI*2); ctx.fill();
-                }
-                if (isMirrorMode) {
-                    const mHit = getMirroredHit(hit);
-                    if (mHit && mHit.uv) {
-                        ctx.beginPath(); ctx.arc(mHit.uv.x * 2048, mHit.uv.y * 2048, parseInt(ui.size.value)/5, 0, Math.PI*2); ctx.fill();
-                    }
-                }
-            });
         }
-    } else if (currentMode === 'decal' && !isPainting) {
-        activeGhostMeshes.push(applyDecal(hit, true, false));
-        if (isMirrorMode) {
-            const mHit = getMirroredHit(hit);
-            if (mHit) activeGhostMeshes.push(applyDecal(mHit, true, true));
-        }
+    }
+
+    if (currentMode === 'brush' && isPainting) {
+        const hit = getIntersection(e.clientX, e.clientY);
+        if (hit && hit.uv) executeBrush(hit);
     }
 });
 
-// Commit Logic for pointer interactions
-window.addEventListener('pointerdown', (e) => {
-    // Stop painting if touching UI elements
-    if (e.target.closest('#control-center') || e.target.closest('header')) return;
+canvasEl.addEventListener('pointerup', (e) => {
+    if (!e.isPrimary) return;
     
-    if (currentMode === 'camera') return;
-    const hit = getIntersection(e);
-    if (!hit) return;
+    if (currentMode === 'brush') {
+        isPainting = false;
+        controls.enabled = true; 
+    } else if (!isDragging && currentMode !== 'camera') {
+        // CLEAN TAP DETECTED - Execute Bucket or Decal
+        const hit = getIntersection(e.clientX, e.clientY);
+        if (!hit) return;
 
-    saveState();
-    const createdMeshes = [];
-
-    if (currentMode === 'brush' && hit.uv) {
-        isPainting = true;
-        const cX = hit.uv.x * 2048; const cY = hit.uv.y * 2048;
-        bCtx.fillStyle = ui.color.value; bCtx.beginPath(); bCtx.arc(cX, cY, parseInt(ui.size.value)/5, 0, Math.PI*2); bCtx.fill();
-        
-        if (isMirrorMode) {
-            const mHit = getMirroredHit(hit);
-            if (mHit && mHit.uv) {
-                const mx = mHit.uv.x * 2048; const my = mHit.uv.y * 2048;
-                bCtx.beginPath(); bCtx.arc(mx, my, parseInt(ui.size.value)/5, 0, Math.PI*2); bCtx.fill();
+        if (currentMode === 'bucket') {
+            saveBucketState(hit.object);
+            hit.object.material.color.set(ui.color.value);
+        } else if (currentMode === 'decal') {
+            clearGhosts();
+            const createdGroups = [];
+            createdGroups.push(applyDecal(hit, false, false));
+            if (isMirrorMode) {
+                const mHit = getMirroredHit(hit);
+                if (mHit) createdGroups.push(applyDecal(mHit, false, true));
             }
+            saveDecalState(createdGroups);
         }
-        updateRenderCanvas();
-    } else if (currentMode === 'decal') {
-        clearGhosts();
-        createdMeshes.push(applyDecal(hit, false, false));
-        if (isMirrorMode) {
-            const mHit = getMirroredHit(hit);
-            if (mHit) createdMeshes.push(applyDecal(mHit, false, true));
-        }
-        registerMeshesToLastState(createdMeshes);
     }
 });
 
-window.addEventListener('pointerup', () => isPainting = false);
-
-// --- 6. Load Model ---
+// --- 6. Load Model with Parent Grouping ---
 const loader = new THREE.GLTFLoader();
+const materialCache = {}; 
+
 loader.load('scene.gltf', (gltf) => {
     const carModel = gltf.scene;
+
     carModel.traverse((node) => {
         if (node.isMesh) {
             node.castShadow = true; node.receiveShadow = true;
             const id = (node.name + (node.material ? node.material.name : '')).toLowerCase();
+            
             if (!id.includes('wheel') && !id.includes('tire') && !id.includes('glass')) {
-                paintableMeshes.push(node); 
                 if (node.material) {
-                    node.material.map = canvasTexture; node.material.needsUpdate = true;
+                    const parentId = node.parent ? node.parent.uuid : 'root';
+                    const matName = node.material.name || 'unnamed';
+                    const groupKey = parentId + "_" + matName;
+                    
+                    if (!materialCache[groupKey]) {
+                        materialCache[groupKey] = node.material.clone();
+                        materialCache[groupKey].color.setHex(0xffffff); 
+                        materialCache[groupKey].map = canvasTexture; // Allows Brush to map over Bucket colors
+                    }
+                    
+                    node.material = materialCache[groupKey];
+                    node.material.needsUpdate = true;
                 }
+                paintableMeshes.push(node); 
             }
         }
     });
+
     const box = new THREE.Box3().setFromObject(carModel);
     carModel.position.sub(box.getCenter(new THREE.Vector3()));
     scene.add(carModel);
@@ -417,7 +449,14 @@ loader.load('scene.gltf', (gltf) => {
 
 // --- 7. Core Loop ---
 window.addEventListener('resize', () => {
-    camera.aspect = window.innerWidth / window.innerHeight; camera.updateProjectionMatrix(); renderer.setSize(window.innerWidth, window.innerHeight);
+    camera.aspect = window.innerWidth / window.innerHeight; 
+    camera.updateProjectionMatrix(); 
+    renderer.setSize(window.innerWidth, window.innerHeight);
 });
-function animate() { requestAnimationFrame(animate); if (currentMode === 'camera') controls.update(); renderer.render(scene, camera); }
+
+function animate() { 
+    requestAnimationFrame(animate); 
+    if (controls.enabled) controls.update(); 
+    renderer.render(scene, camera); 
+}
 animate();
