@@ -50,21 +50,20 @@
     <div id="control-center">
         
         <div class="tool-group">
-            <label>Camera</label>
+            <label>Camera & Navigation</label>
             <div class="btn-row">
-                <button class="cam-btn" data-cam="free">Free</button>
+                <button id="mode-camera" class="active">🎥 Orbit</button>
                 <button class="cam-btn" data-cam="side">Side</button>
                 <button class="cam-btn" data-cam="front">Front</button>
                 <button class="cam-btn" data-cam="back">Back</button>
                 <button class="cam-btn" data-cam="top">Top</button>
-                <button class="cam-btn" data-cam="iso">45° Down</button>
+                <button class="cam-btn" data-cam="iso">45°</button>
             </div>
         </div>
 
         <div class="tool-group">
             <label>Studio Mode</label>
             <div class="btn-row">
-                <button id="mode-camera" class="active">🎥 Orbit</button>
                 <button id="mode-brush">🖌️ Brush</button>
                 <button id="mode-bucket">🪣 Bucket</button>
                 <button id="mode-decal">⭐ Decal</button>
@@ -78,7 +77,7 @@
 
         <div class="tool-group">
             <label>Size / Scale</label>
-            <input type="range" id="toolSize" min="5" max="3000" value="20">
+            <input type="range" id="toolSize" min="1" max="100" value="15">
         </div>
 
         <div class="tool-group" id="decal-select-wrap" style="display: none;">
