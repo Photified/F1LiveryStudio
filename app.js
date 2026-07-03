@@ -104,7 +104,6 @@ function setMode(mode) {
     ui.decalWrap.style.display = (mode === 'decal') ? 'flex' : 'none';
     controls.enabled = (mode === 'camera');
     
-    // Dynamic Tool Sizing Fix
     if (mode === 'brush') {
         ui.size.min = 1; ui.size.max = 100; ui.size.value = 15;
     } else if (mode === 'decal') {
@@ -144,7 +143,6 @@ ui.resetBtn.addEventListener('click', () => {
     bCtx.clearRect(0, 0, 2048, 2048);
     updateRenderCanvas();
     
-    // Reset Decals
     actionHistory.forEach(action => {
         action.meshes.forEach(mesh => {
             scene.remove(mesh);
@@ -154,7 +152,6 @@ ui.resetBtn.addEventListener('click', () => {
         action.meshes = [];
     });
     
-    // Reset Panel Colors
     paintableMeshes.forEach(shell => {
         if (shell.userData.baseMesh && shell.userData.baseMesh.material) {
             shell.userData.baseMesh.material.color.setHex(0xffffff);
@@ -228,9 +225,11 @@ function createDecalMaterial(type, color) {
     const texture = new THREE.CanvasTexture(dCanvas);
     texture.anisotropy = renderer.capabilities.getMaxAnisotropy();
 
+    // EXTREME POLYGON OFFSET APPLIED HERE TO PREVENT Z-FIGHTING
     const mat = new THREE.MeshStandardMaterial({
         map: texture, transparent: true, depthTest: true, depthWrite: false, 
-        polygonOffset: true, polygonOffsetFactor: -4, wireframe: false, roughness: 0.2
+        polygonOffset: true, polygonOffsetFactor: -10, polygonOffsetUnits: -10, 
+        wireframe: false, roughness: 0.2
     });
     window.decalCache[key] = mat;
     return mat;
@@ -264,12 +263,9 @@ function applyDecal(hit, isGhost = false) {
     dummy.rotateZ(rot * Math.PI / 180);
 
     const sizeVal = parseInt(ui.size.value) / 100;
-    
-    // Tearing Fix: Tighten the projection bounds so it doesn't clip opposite sides
     const projectionDepth = Math.min(sizeVal * 0.2, 0.5); 
     const scale = new THREE.Vector3(sizeVal, sizeVal, projectionDepth);
 
-    // Apply decal to the underlying base geometry, not the transparent shell
     const targetGeoMesh = hit.object.userData.baseMesh || hit.object;
 
     const decalGeo = new THREE.DecalGeometry(targetGeoMesh, position, dummy.rotation, scale);
@@ -285,7 +281,6 @@ function applyDecal(hit, isGhost = false) {
 }
 
 function applyMirroredDecal(hit, isGhost = false) {
-    // Mirror Logic Fix: Mathematically clone symmetry without a second raycast
     const position = hit.point.clone();
     position.x = -position.x; 
     
@@ -323,7 +318,6 @@ function clearGhosts() {
     activeGhostMeshes = [];
 }
 
-// Hover Logic
 window.addEventListener('mousemove', (e) => {
     if (currentMode === 'camera') return;
     
@@ -356,7 +350,6 @@ window.addEventListener('mousemove', (e) => {
     }
 });
 
-// Commit Logic
 window.addEventListener('mousedown', (e) => {
     if (currentMode === 'camera') return;
     const hit = getIntersection(e);
@@ -378,7 +371,7 @@ window.addEventListener('mousedown', (e) => {
         }
         registerMeshesToLastState(createdMeshes);
     } else if (currentMode === 'bucket') {
-        // Targeted Panel Color Fix: Grabs the base mesh connected to the paint shell
+        // Shared Material Architecture automatically updates all connected model chunks
         const targetMesh = hit.object.userData.baseMesh || hit.object;
         targetMesh.material.color.set(ui.color.value);
     }
@@ -388,6 +381,8 @@ window.addEventListener('mouseup', () => isPainting = false);
 
 // --- 6. Paint Shell Loading System ---
 const loader = new THREE.GLTFLoader();
+const clonedMaterials = {}; // Shared dictionary to prevent chunking
+
 loader.load('scene.gltf', (gltf) => {
     const carModel = gltf.scene;
     const shellsToAdd = [];
@@ -399,31 +394,40 @@ loader.load('scene.gltf', (gltf) => {
             
             if (!id.includes('wheel') && !id.includes('tire') && !id.includes('glass')) {
                 
-                // 1. Give the base mesh a unique material clone so the Bucket tool isolates panels
+                // Keep connected model pieces linked so the Bucket tool colors them all at once
                 if (node.material) {
-                    node.material = node.material.clone();
+                    const matId = node.material.uuid;
+                    if (!clonedMaterials[matId]) {
+                        clonedMaterials[matId] = node.material.clone();
+                    }
+                    node.material = clonedMaterials[matId];
                     node.material.needsUpdate = true;
                 }
 
-                // 2. Create the transparent "Paint Shell" for the brush to draw over everything
                 const shell = node.clone();
+                // Strip shadows from the invisible paint layer to stop jagged acne
+                shell.castShadow = false; 
+                shell.receiveShadow = false;
+                
+                // Aggressive depth offset and alpha discarding
                 shell.material = new THREE.MeshStandardMaterial({
                     map: canvasTexture,
                     transparent: true,
+                    alphaTest: 0.05, 
                     depthWrite: false,
                     polygonOffset: true,
-                    polygonOffsetFactor: -5, // Renders precisely over decals (-4) and base mesh (0)
+                    polygonOffsetFactor: -20, 
+                    polygonOffsetUnits: -20,
                     roughness: 0.3
                 });
                 shell.userData.baseMesh = node; 
                 
-                paintableMeshes.push(shell); // Only the shell receives raycasts
+                paintableMeshes.push(shell); 
                 shellsToAdd.push({ parent: node.parent, shell: shell });
             }
         }
     });
 
-    // Add shells after traversal to prevent infinite loop
     shellsToAdd.forEach(item => item.parent.add(item.shell));
 
     const box = new THREE.Box3().setFromObject(carModel);
