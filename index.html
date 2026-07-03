@@ -28,9 +28,13 @@
         .btn-row { display: flex; gap: 5px; align-items: center; }
         
         label { font-size: 10px; text-transform: uppercase; color: #aaa; font-weight: bold; letter-spacing: 1px; }
-        button, select { background: #2a2a2a; color: white; border: 1px solid #555; padding: 8px 12px; border-radius: 6px; font-weight: bold; cursor: pointer; font-size: 13px; }
+        button, select { background: #2a2a2a; color: white; border: 1px solid #555; padding: 8px 12px; border-radius: 6px; font-weight: bold; cursor: pointer; font-size: 13px; transition: 0.2s; }
         button:hover { background: #3a3a3a; border-color: #777; }
         button.active { background: #e10600; border-color: #ff3b30; }
+        button.toggle-on { background: #007aff; border-color: #0056b3; } /* For mirror mode */
+        
+        /* Smaller buttons specifically for the camera views */
+        .cam-btn { padding: 6px 8px; font-size: 11px; }
         
         input[type="color"] { border: none; width: 40px; height: 35px; border-radius: 6px; cursor: pointer; background: none; }
         input[type="range"] { accent-color: #e10600; cursor: pointer; width: 100px; }
@@ -45,6 +49,19 @@
     <div id="viewport3d"></div>
 
     <div id="control-center">
+        
+        <div class="tool-group">
+            <label>Camera</label>
+            <div class="btn-row">
+                <button class="cam-btn" data-cam="free">Free</button>
+                <button class="cam-btn" data-cam="side">Side</button>
+                <button class="cam-btn" data-cam="front">Front</button>
+                <button class="cam-btn" data-cam="back">Back</button>
+                <button class="cam-btn" data-cam="top">Top</button>
+                <button class="cam-btn" data-cam="iso">45° Down</button>
+            </div>
+        </div>
+
         <div class="tool-group">
             <label>Studio Mode</label>
             <div class="btn-row">
@@ -88,6 +105,7 @@
         <div class="tool-group">
             <label>Actions</label>
             <div class="btn-row">
+                <button id="mirrorBtn" style="background: #222;">🪞 Mirror: OFF</button>
                 <button id="undoBtn" style="background: #333;">↩️ Undo</button>
                 <button id="resetBtn" style="background: #444;">Reset</button>
             </div>

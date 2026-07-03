@@ -4,7 +4,8 @@ const scene = new THREE.Scene();
 scene.background = new THREE.Color('#1a1a1a');
 
 const camera = new THREE.PerspectiveCamera(45, window.innerWidth / window.innerHeight, 0.1, 100);
-camera.position.set(-8.5, 3.5, 8.5); 
+// Set initial view to a direct Side View, zoomed out to fit the car
+camera.position.set(10, 0.5, 0); 
 
 const renderer = new THREE.WebGLRenderer({ antialias: true });
 renderer.setSize(window.innerWidth, window.innerHeight);
@@ -27,6 +28,7 @@ scene.add(sideLight2);
 const controls = new THREE.OrbitControls(camera, renderer.domElement);
 controls.enableDamping = true;
 controls.dampingFactor = 0.05;
+controls.target.set(0, -0.2, 0); // Aim slightly below center to lift car up visually
 
 // --- 3. DUAL-CANVAS ARCHITECTURE & UNDO HISTORY ---
 const baseCanvas = document.createElement('canvas');
@@ -70,6 +72,7 @@ function updateRenderCanvas(ghostDrawCallback = null) {
 // --- 4. UI Elements & State Tracking ---
 let currentMode = 'camera'; 
 let isPainting = false;
+let isMirrorMode = false;
 let paintableMeshes = []; 
 
 const ui = {
@@ -82,6 +85,7 @@ const ui = {
     decalWrap: document.getElementById('decal-select-wrap'),
     decalType: document.getElementById('decalType'),
     decalRot: document.getElementById('decalRot'),
+    mirrorBtn: document.getElementById('mirrorBtn'),
     undoBtn: document.getElementById('undoBtn'),
     resetBtn: document.getElementById('resetBtn')
 };
@@ -93,7 +97,6 @@ function setMode(mode) {
     
     ui.decalWrap.style.display = (mode === 'decal') ? 'flex' : 'none';
     controls.enabled = (mode === 'camera');
-    
     updateRenderCanvas(); 
 }
 
@@ -101,15 +104,23 @@ ui.camera.addEventListener('click', () => setMode('camera'));
 ui.brush.addEventListener('click', () => setMode('brush'));
 ui.decal.addEventListener('click', () => setMode('decal'));
 
+// Mirror Toggle
+ui.mirrorBtn.addEventListener('click', () => {
+    isMirrorMode = !isMirrorMode;
+    if (isMirrorMode) {
+        ui.mirrorBtn.classList.add('toggle-on');
+        ui.mirrorBtn.innerText = "🪞 Mirror: ON";
+    } else {
+        ui.mirrorBtn.classList.remove('toggle-on');
+        ui.mirrorBtn.innerText = "🪞 Mirror: OFF";
+    }
+});
+
 ui.bucket.addEventListener('click', () => {
     saveState();
     bCtx.fillStyle = ui.color.value;
     bCtx.fillRect(0, 0, 2048, 2048);
     updateRenderCanvas();
-    
-    paintableMeshes.forEach(m => {
-        if (m.material) { m.material.map = canvasTexture; m.material.needsUpdate = true; }
-    });
 });
 
 ui.undoBtn.addEventListener('click', () => {
@@ -125,6 +136,31 @@ ui.resetBtn.addEventListener('click', () => {
     bCtx.clearRect(0, 0, 2048, 2048);
     bCtx.drawImage(baseMapImage, 0, 0, 2048, 2048);
     updateRenderCanvas();
+});
+
+// --- 4.5 Camera Presets ---
+const camViews = {
+    side: new THREE.Vector3(10, 0.5, 0),
+    front: new THREE.Vector3(0, 0.5, 10),
+    back: new THREE.Vector3(0, 0.5, -10),
+    top: new THREE.Vector3(0, 10, 0),
+    iso: new THREE.Vector3(-7, 5, 7)
+};
+
+document.querySelectorAll('.cam-btn').forEach(btn => {
+    btn.addEventListener('click', (e) => {
+        const view = e.target.getAttribute('data-cam');
+        if (view === 'free') {
+            setMode('camera'); // Just switch to orbit mode
+            return;
+        }
+        if (camViews[view]) {
+            camera.position.copy(camViews[view]);
+            camera.lookAt(0, -0.2, 0);
+            controls.target.set(0, -0.2, 0);
+            controls.update();
+        }
+    });
 });
 
 // --- 5. Decal Drawing Engine ---
@@ -209,8 +245,9 @@ function drawShape(ctx, x, y, size, rotation, type, color) {
     ctx.restore();
 }
 
-// --- 6. Raycast Projection Engine ---
+// --- 6. Raycast Projection Engine (WITH MIRRORING) ---
 const raycaster = new THREE.Raycaster();
+const mirrorRaycaster = new THREE.Raycaster();
 const mouseVector = new THREE.Vector2();
 
 function getIntersection(e) {
@@ -222,6 +259,47 @@ function getIntersection(e) {
     return intersects.length > 0 ? intersects[0] : null;
 }
 
+// Helper to find the mirrored UV coordinate on the opposite side of the car
+function getMirroredUV(hit) {
+    // F1 cars are symmetrical across the X-axis
+    const mirroredPoint = hit.point.clone();
+    mirroredPoint.x = -mirroredPoint.x; 
+
+    // Find the normal (surface direction) and flip it too
+    const normalMatrix = new THREE.Matrix3().getNormalMatrix(hit.object.matrixWorld);
+    const mirroredNormal = hit.face.normal.clone().applyMatrix3(normalMatrix).normalize();
+    mirroredNormal.x = -mirroredNormal.x;
+
+    // Shoot a ray from slightly "outside" the mirrored point, pointing inwards
+    const origin = mirroredPoint.clone().add(mirroredNormal.clone().multiplyScalar(0.5));
+    const direction = mirroredNormal.clone().negate();
+    
+    mirrorRaycaster.set(origin, direction);
+    const mIntersects = mirrorRaycaster.intersectObjects(paintableMeshes, true);
+    
+    return mIntersects.length > 0 ? mIntersects[0].uv : null;
+}
+
+// Abstracted draw function to handle both primary and mirror strokes
+function applyStroke(ctx, uv, isGhost = false) {
+    if (!uv) return;
+    const cX = uv.x * 2048;
+    const cY = uv.y * 2048;
+    const size = parseInt(ui.size.value);
+    const color = ui.color.value;
+
+    if (currentMode === 'brush') {
+        ctx.fillStyle = color;
+        ctx.beginPath();
+        ctx.arc(cX, cY, size, 0, Math.PI*2);
+        ctx.fill();
+    } else if (currentMode === 'decal') {
+        const rot = parseInt(ui.decalRot.value);
+        drawShape(ctx, cX, cY, size*2, rot, ui.decalType.value, color);
+    }
+}
+
+// Hover/Preview Logic
 window.addEventListener('mousemove', (e) => {
     if (currentMode === 'camera') return;
     
@@ -231,32 +309,22 @@ window.addEventListener('mousemove', (e) => {
         return;
     }
 
-    const cX = hit.uv.x * 2048;
-    const cY = hit.uv.y * 2048;
-    const size = parseInt(ui.size.value);
-    const color = ui.color.value;
-
     if (currentMode === 'brush' && isPainting) {
-        bCtx.fillStyle = color;
-        bCtx.beginPath();
-        bCtx.arc(cX, cY, size, 0, Math.PI*2);
-        bCtx.fill();
+        // Active Brushing (Commit directly to Base)
+        applyStroke(bCtx, hit.uv);
+        if (isMirrorMode) applyStroke(bCtx, getMirroredUV(hit));
         updateRenderCanvas();
     } 
-    else if (currentMode === 'brush' && !isPainting) {
+    else if (!isPainting) {
+        // Ghost Preview
         updateRenderCanvas((ctx) => {
-            ctx.beginPath();
-            ctx.arc(cX, cY, size, 0, Math.PI*2);
-            ctx.fillStyle = color;
-            ctx.fill();
+            applyStroke(ctx, hit.uv, true);
+            if (isMirrorMode) applyStroke(ctx, getMirroredUV(hit), true);
         });
-    }
-    else if (currentMode === 'decal') {
-        const rot = parseInt(ui.decalRot.value);
-        updateRenderCanvas((ctx) => drawShape(ctx, cX, cY, size*2, rot, ui.decalType.value, color));
     }
 });
 
+// Commit Logic
 window.addEventListener('mousedown', (e) => {
     if (currentMode === 'camera') return;
     
@@ -270,21 +338,12 @@ window.addEventListener('mousedown', (e) => {
         hit.object.material.needsUpdate = true;
     }
 
-    const cX = hit.uv.x * 2048;
-    const cY = hit.uv.y * 2048;
-    const size = parseInt(ui.size.value);
-    const color = ui.color.value;
-
-    if (currentMode === 'brush') {
-        isPainting = true;
-        bCtx.fillStyle = color;
-        bCtx.beginPath(); bCtx.arc(cX, cY, size, 0, Math.PI*2); bCtx.fill();
-        updateRenderCanvas();
-    } else if (currentMode === 'decal') {
-        const rot = parseInt(ui.decalRot.value);
-        drawShape(bCtx, cX, cY, size*2, rot, ui.decalType.value, color);
-        updateRenderCanvas();
-    }
+    if (currentMode === 'brush') isPainting = true;
+    
+    applyStroke(bCtx, hit.uv);
+    if (isMirrorMode) applyStroke(bCtx, getMirroredUV(hit));
+    
+    updateRenderCanvas();
 });
 
 window.addEventListener('mouseup', () => isPainting = false);
@@ -317,7 +376,7 @@ loader.load('scene.gltf', (gltf) => {
     const box = new THREE.Box3().setFromObject(carModel);
     const center = box.getCenter(new THREE.Vector3());
     carModel.position.sub(center);
-    controls.target.copy(center);
+    controls.target.set(0, -0.2, 0);
     controls.update();
     scene.add(carModel);
 });
