@@ -3,9 +3,9 @@ const container = document.getElementById('viewport3d');
 const scene = new THREE.Scene();
 scene.background = new THREE.Color('#1a1a1a');
 
-// Adjusted camera position to perfectly match your diagonal screenshot orientation
+// Zoomed the camera out so the whole car fits in the frame on load
 const camera = new THREE.PerspectiveCamera(45, window.innerWidth / window.innerHeight, 0.1, 100);
-camera.position.set(-4.5, 2.0, 4.5); 
+camera.position.set(-8.5, 3.5, 8.5); 
 
 const renderer = new THREE.WebGLRenderer({ antialias: true });
 renderer.setSize(window.innerWidth, window.innerHeight);
@@ -43,7 +43,6 @@ const pCtx = paintCanvas.getContext('2d');
 const canvasTexture = new THREE.CanvasTexture(paintCanvas);
 canvasTexture.flipY = false;
 
-// Load your downloaded model's default map into our active painter
 const baseMapImage = new Image();
 baseMapImage.src = 'textures/Livery_baseColor.png';
 baseMapImage.onload = () => {
@@ -54,7 +53,7 @@ baseMapImage.onload = () => {
 // --- 5. UI Elements & State Tracking ---
 let currentMode = 'camera'; 
 let isPainting = false;
-let paintableMeshes = []; // Stores all car parts so we can paint anywhere
+let paintableMeshes = []; // Stores only the chassis, protecting the tires
 
 const modeCamera = document.getElementById('mode-camera');
 const modeBrush = document.getElementById('mode-brush');
@@ -70,25 +69,12 @@ function setMode(mode) {
     currentMode = mode;
     [modeCamera, modeBrush, modeBucket, modeDecal].forEach(b => b.classList.remove('active'));
     decalSelectWrap.style.display = (mode === 'decal') ? 'flex' : 'none';
-    
-    // Lock camera movement during paint mode
     controls.enabled = (mode === 'camera');
 }
 
-modeCamera.addEventListener('click', () => {
-    setMode('camera');
-    modeCamera.classList.add('active');
-});
-
-modeBrush.addEventListener('click', () => {
-    setMode('brush');
-    modeBrush.classList.add('active');
-});
-
-modeDecal.addEventListener('click', () => {
-    setMode('decal');
-    modeDecal.classList.add('active');
-});
+modeCamera.addEventListener('click', () => { setMode('camera'); modeCamera.classList.add('active'); });
+modeBrush.addEventListener('click', () => { setMode('brush'); modeBrush.classList.add('active'); });
+modeDecal.addEventListener('click', () => { setMode('decal'); modeDecal.classList.add('active'); });
 
 // Instant Fill Bucket Tool
 modeBucket.addEventListener('click', () => {
@@ -96,7 +82,6 @@ modeBucket.addEventListener('click', () => {
     pCtx.fillRect(0, 0, paintCanvas.width, paintCanvas.height);
     canvasTexture.needsUpdate = true;
     
-    // Apply texture to all meshes just in case it wasn't mapped yet
     paintableMeshes.forEach(mesh => {
         if (mesh.material) {
             mesh.material.map = canvasTexture;
@@ -114,14 +99,25 @@ loader.load('scene.gltf', (gltf) => {
         if (node.isMesh) {
             node.castShadow = true;
             node.receiveShadow = true;
-            paintableMeshes.push(node); // Add every mesh to the hit detection array
             
-            // Automatically assign the paint canvas to the main bodywork if it already has a texture
-            if (node.material && node.material.map) {
-                node.material.map = canvasTexture;
-                node.material.roughness = 0.15;
-                node.material.metalness = 0.4;
-                node.material.needsUpdate = true;
+            // SMART FILTER: Check the name of the mesh and material to protect tires and glass
+            const nodeIdentity = (node.name + (node.material ? node.material.name : '')).toLowerCase();
+            const isProtected = nodeIdentity.includes('wheel') || 
+                                nodeIdentity.includes('tire') || 
+                                nodeIdentity.includes('tyre') || 
+                                nodeIdentity.includes('glass') || 
+                                nodeIdentity.includes('halo');
+
+            if (!isProtected) {
+                paintableMeshes.push(node); 
+                
+                // Assign the paint canvas ONLY to the car body
+                if (node.material) {
+                    node.material.map = canvasTexture;
+                    node.material.roughness = 0.15;
+                    node.material.metalness = 0.4;
+                    node.material.needsUpdate = true;
+                }
             }
         }
     });
@@ -131,7 +127,6 @@ loader.load('scene.gltf', (gltf) => {
     const center = box.getCenter(new THREE.Vector3());
     carModel.position.sub(center);
     
-    // Lock the camera orbit target exactly onto the car's center
     controls.target.copy(center);
     controls.update();
 
@@ -145,24 +140,14 @@ const mouseVector = new THREE.Vector2();
 function projectDraw(e) {
     if (paintableMeshes.length === 0) return;
 
-    // Convert screen coordinates to normalized device coordinates
     mouseVector.x = (e.clientX / window.innerWidth) * 2 - 1;
     mouseVector.y = -(e.clientY / window.innerHeight) * 2 + 1;
 
     raycaster.setFromCamera(mouseVector, camera);
-    
-    // Check for collisions against ALL parts of the car
     const intersects = raycaster.intersectObjects(paintableMeshes, true);
 
     if (intersects.length > 0) {
         const hit = intersects[0];
-        const hitMesh = hit.object;
-
-        // Forcefully ensure the part you clicked has the paint texture applied
-        if (hitMesh.material && hitMesh.material.map !== canvasTexture) {
-            hitMesh.material.map = canvasTexture;
-            hitMesh.material.needsUpdate = true;
-        }
         
         if (hit.uv) {
             const canvasX = hit.uv.x * paintCanvas.width;
@@ -196,7 +181,6 @@ function projectDraw(e) {
                     pCtx.fill();
                 }
                 
-                // Drop back to camera mode immediately after placing one decal
                 setMode('camera'); 
                 modeCamera.classList.add('active');
             }
