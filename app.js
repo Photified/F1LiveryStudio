@@ -1,19 +1,17 @@
-// --- 1. Scene, Camera, & Renderer Configuration ---
+// --- 1. Scene, Camera, & Renderer ---
 const container = document.getElementById('viewport3d');
 const scene = new THREE.Scene();
 scene.background = new THREE.Color('#1a1a1a');
 
 const camera = new THREE.PerspectiveCamera(45, window.innerWidth / window.innerHeight, 0.1, 100);
-// Set initial view to a direct Side View, zoomed out to fit the car
 camera.position.set(10, 0.5, 0); 
 
-const renderer = new THREE.WebGLRenderer({ antialias: true });
+const renderer = new THREE.WebGLRenderer({ antialias: true, alpha: true });
 renderer.setSize(window.innerWidth, window.innerHeight);
 renderer.setPixelRatio(Math.min(window.devicePixelRatio, 2));
 renderer.shadowMap.enabled = true;
 container.appendChild(renderer.domElement);
 
-// --- 2. Advanced Lighting Setup ---
 scene.add(new THREE.AmbientLight(0xffffff, 0.7));
 const topLight = new THREE.DirectionalLight(0xffffff, 0.8);
 topLight.position.set(0, 10, 0);
@@ -28,9 +26,9 @@ scene.add(sideLight2);
 const controls = new THREE.OrbitControls(camera, renderer.domElement);
 controls.enableDamping = true;
 controls.dampingFactor = 0.05;
-controls.target.set(0, -0.2, 0); // Aim slightly below center to lift car up visually
+controls.target.set(0, -0.2, 0); 
 
-// --- 3. DUAL-CANVAS ARCHITECTURE & UNDO HISTORY ---
+// --- 2. Base Canvas (For Brush/Bucket Skins) ---
 const baseCanvas = document.createElement('canvas');
 baseCanvas.width = 2048; baseCanvas.height = 2048;
 const bCtx = baseCanvas.getContext('2d');
@@ -42,12 +40,24 @@ const rCtx = renderCanvas.getContext('2d');
 const canvasTexture = new THREE.CanvasTexture(renderCanvas);
 canvasTexture.flipY = false;
 
-const undoStack = [];
-const MAX_UNDO = 5;
+// --- Unified Undo History Stack ---
+const actionHistory = []; 
+const MAX_UNDO = 10;
 
 function saveState() {
-    if (undoStack.length >= MAX_UNDO) undoStack.shift();
-    undoStack.push(bCtx.getImageData(0, 0, 2048, 2048));
+    if (actionHistory.length >= MAX_UNDO) actionHistory.shift();
+    // We save the canvas state, and leave a placeholder for meshes if a decal is added
+    actionHistory.push({ 
+        type: 'state', 
+        canvasData: bCtx.getImageData(0, 0, 2048, 2048),
+        meshes: [] 
+    });
+}
+
+function registerMeshesToLastState(meshes) {
+    if (actionHistory.length > 0) {
+        actionHistory[actionHistory.length - 1].meshes.push(...meshes);
+    }
 }
 
 const baseMapImage = new Image();
@@ -69,11 +79,12 @@ function updateRenderCanvas(ghostDrawCallback = null) {
     canvasTexture.needsUpdate = true;
 }
 
-// --- 4. UI Elements & State Tracking ---
+// --- 3. UI Elements ---
 let currentMode = 'camera'; 
 let isPainting = false;
 let isMirrorMode = false;
 let paintableMeshes = []; 
+let activeGhostMeshes = [];
 
 const ui = {
     camera: document.getElementById('mode-camera'),
@@ -94,9 +105,9 @@ function setMode(mode) {
     currentMode = mode;
     ['camera', 'brush', 'bucket', 'decal'].forEach(m => ui[m].classList.remove('active'));
     ui[mode].classList.add('active');
-    
     ui.decalWrap.style.display = (mode === 'decal') ? 'flex' : 'none';
     controls.enabled = (mode === 'camera');
+    clearGhosts();
     updateRenderCanvas(); 
 }
 
@@ -104,16 +115,10 @@ ui.camera.addEventListener('click', () => setMode('camera'));
 ui.brush.addEventListener('click', () => setMode('brush'));
 ui.decal.addEventListener('click', () => setMode('decal'));
 
-// Mirror Toggle
 ui.mirrorBtn.addEventListener('click', () => {
     isMirrorMode = !isMirrorMode;
-    if (isMirrorMode) {
-        ui.mirrorBtn.classList.add('toggle-on');
-        ui.mirrorBtn.innerText = "🪞 Mirror: ON";
-    } else {
-        ui.mirrorBtn.classList.remove('toggle-on');
-        ui.mirrorBtn.innerText = "🪞 Mirror: OFF";
-    }
+    ui.mirrorBtn.classList.toggle('toggle-on');
+    ui.mirrorBtn.innerText = isMirrorMode ? "🪞 Mirror: ON" : "🪞 Mirror: OFF";
 });
 
 ui.bucket.addEventListener('click', () => {
@@ -124,10 +129,16 @@ ui.bucket.addEventListener('click', () => {
 });
 
 ui.undoBtn.addEventListener('click', () => {
-    if (undoStack.length > 0) {
-        const previousState = undoStack.pop();
-        bCtx.putImageData(previousState, 0, 0);
+    if (actionHistory.length > 0) {
+        const lastAction = actionHistory.pop();
+        bCtx.putImageData(lastAction.canvasData, 0, 0);
         updateRenderCanvas();
+        // Remove any 3D decals that were applied in this step
+        lastAction.meshes.forEach(mesh => {
+            scene.remove(mesh);
+            if (mesh.geometry) mesh.geometry.dispose();
+            if (mesh.material) mesh.material.dispose();
+        });
     }
 });
 
@@ -136,9 +147,18 @@ ui.resetBtn.addEventListener('click', () => {
     bCtx.clearRect(0, 0, 2048, 2048);
     bCtx.drawImage(baseMapImage, 0, 0, 2048, 2048);
     updateRenderCanvas();
+    // Wipe all historical meshes from scene
+    actionHistory.forEach(action => {
+        action.meshes.forEach(mesh => {
+            scene.remove(mesh);
+            if (mesh.geometry) mesh.geometry.dispose();
+            if (mesh.material) mesh.material.dispose();
+        });
+        action.meshes = [];
+    });
 });
 
-// --- 4.5 Camera Presets ---
+// Camera Presets
 const camViews = {
     side: new THREE.Vector3(10, 0.5, 0),
     front: new THREE.Vector3(0, 0.5, 10),
@@ -146,14 +166,10 @@ const camViews = {
     top: new THREE.Vector3(0, 10, 0),
     iso: new THREE.Vector3(-7, 5, 7)
 };
-
 document.querySelectorAll('.cam-btn').forEach(btn => {
     btn.addEventListener('click', (e) => {
         const view = e.target.getAttribute('data-cam');
-        if (view === 'free') {
-            setMode('camera'); // Just switch to orbit mode
-            return;
-        }
+        if (view === 'free') return setMode('camera');
         if (camViews[view]) {
             camera.position.copy(camViews[view]);
             camera.lookAt(0, -0.2, 0);
@@ -163,89 +179,60 @@ document.querySelectorAll('.cam-btn').forEach(btn => {
     });
 });
 
-// --- 5. Decal Drawing Engine ---
-function drawShape(ctx, x, y, size, rotation, type, color) {
-    ctx.save();
-    ctx.fillStyle = color;
-    ctx.strokeStyle = color;
-    ctx.translate(x, y);
-    ctx.rotate(rotation * Math.PI / 180); 
-    
+// --- 4. 2D Geometry Drawer (For Decal Materials) ---
+function drawShape(ctx, x, y, size, type, color) {
+    ctx.save(); ctx.fillStyle = color; ctx.translate(x, y);
     if (type === 'star') {
         ctx.beginPath();
         for (let i = 0; i < 5; i++) {
             ctx.lineTo(Math.cos((18+i*72)*Math.PI/180)*size, -Math.sin((18+i*72)*Math.PI/180)*size);
             ctx.lineTo(Math.cos((54+i*72)*Math.PI/180)*(size/2), -Math.sin((54+i*72)*Math.PI/180)*(size/2));
         }
-        ctx.closePath();
-        ctx.fill();
+        ctx.closePath(); ctx.fill();
     } else if (type === 'stripe') {
-        ctx.beginPath();
-        ctx.moveTo(-size/2, -size*2);
-        ctx.lineTo(size/2, -size*1.5);
-        ctx.lineTo(size/4, size*2);
-        ctx.lineTo(-size/2, size*2);
-        ctx.closePath();
-        ctx.fill();
+        ctx.beginPath(); ctx.moveTo(-size/2, -size*2); ctx.lineTo(size/2, -size*1.5); ctx.lineTo(size/4, size*2); ctx.lineTo(-size/2, size*2); ctx.closePath(); ctx.fill();
     } else if (type === 'circle') {
         ctx.beginPath(); ctx.arc(0, 0, size, 0, Math.PI*2); ctx.fill();
     } else if (type === 'checkered') {
         const sq = size / 2;
-        ctx.fillRect(-sq, -sq, sq, sq); ctx.fillRect(0, 0, sq, sq);
-        ctx.fillStyle = "#ffffff"; 
-        ctx.fillRect(0, -sq, sq, sq); ctx.fillRect(-sq, 0, sq, sq);
+        ctx.fillRect(-sq, -sq, sq, sq); ctx.fillRect(0, 0, sq, sq); ctx.fillStyle = "#ffffff"; ctx.fillRect(0, -sq, sq, sq); ctx.fillRect(-sq, 0, sq, sq);
     } else if (type === 'number1') {
-        ctx.font = `bold ${size*2}px Arial`;
-        ctx.textAlign = 'center';
-        ctx.textBaseline = 'middle';
-        ctx.fillText("1", 0, 0);
+        ctx.font = `bold ${size*2}px Arial`; ctx.textAlign = 'center'; ctx.textBaseline = 'middle'; ctx.fillText("1", 0, 0);
     } else if (type === 'triangle') {
-        ctx.beginPath();
-        ctx.moveTo(0, -size);
-        ctx.lineTo(size * 0.866, size * 0.5);
-        ctx.lineTo(-size * 0.866, size * 0.5);
-        ctx.closePath();
-        ctx.fill();
+        ctx.beginPath(); ctx.moveTo(0, -size); ctx.lineTo(size * 0.866, size * 0.5); ctx.lineTo(-size * 0.866, size * 0.5); ctx.closePath(); ctx.fill();
     } else if (type === 'hexagon') {
-        ctx.beginPath();
-        for (let i = 0; i < 6; i++) {
-            ctx.lineTo(size * Math.cos(i * Math.PI / 3), size * Math.sin(i * Math.PI / 3));
-        }
-        ctx.closePath();
-        ctx.fill();
+        ctx.beginPath(); for (let i = 0; i < 6; i++) { ctx.lineTo(size * Math.cos(i * Math.PI / 3), size * Math.sin(i * Math.PI / 3)); } ctx.closePath(); ctx.fill();
     } else if (type === 'chevron') {
-        ctx.beginPath();
-        ctx.moveTo(-size/2, -size/2);
-        ctx.lineTo(size/2, 0);
-        ctx.lineTo(-size/2, size/2);
-        ctx.lineTo(-size/4, 0);
-        ctx.closePath();
-        ctx.fill();
+        ctx.beginPath(); ctx.moveTo(-size/2, -size/2); ctx.lineTo(size/2, 0); ctx.lineTo(-size/2, size/2); ctx.lineTo(-size/4, 0); ctx.closePath(); ctx.fill();
     } else if (type === 'diamond') {
-        ctx.beginPath();
-        ctx.moveTo(0, -size);
-        ctx.lineTo(size/1.5, 0);
-        ctx.lineTo(0, size);
-        ctx.lineTo(-size/1.5, 0);
-        ctx.closePath();
-        ctx.fill();
+        ctx.beginPath(); ctx.moveTo(0, -size); ctx.lineTo(size/1.5, 0); ctx.lineTo(0, size); ctx.lineTo(-size/1.5, 0); ctx.closePath(); ctx.fill();
     } else if (type === 'swoosh') {
-        ctx.beginPath();
-        ctx.moveTo(-size, size/2);
-        ctx.quadraticCurveTo(0, -size, size, -size/2);
-        ctx.quadraticCurveTo(size/2, -size/4, -size, size/2);
-        ctx.closePath();
-        ctx.fill();
+        ctx.beginPath(); ctx.moveTo(-size, size/2); ctx.quadraticCurveTo(0, -size, size, -size/2); ctx.quadraticCurveTo(size/2, -size/4, -size, size/2); ctx.closePath(); ctx.fill();
     } else if (type === 'cross') {
-        const w = size / 3;
-        ctx.fillRect(-w/2, -size, w, size*2);
-        ctx.fillRect(-size, -w/2, size*2, w);
+        const w = size / 3; ctx.fillRect(-w/2, -size, w, size*2); ctx.fillRect(-size, -w/2, size*2, w);
     }
-    
     ctx.restore();
 }
 
-// --- 6. Raycast Projection Engine (WITH MIRRORING) ---
+function createDecalMaterial(type, color) {
+    const key = type + color;
+    if (window.decalCache && window.decalCache[key]) return window.decalCache[key];
+    if (!window.decalCache) window.decalCache = {};
+
+    const dCanvas = document.createElement('canvas');
+    dCanvas.width = 512; dCanvas.height = 512;
+    drawShape(dCanvas.getContext('2d'), 256, 256, 240, type, color);
+
+    const texture = new THREE.CanvasTexture(dCanvas);
+    const mat = new THREE.MeshStandardMaterial({
+        map: texture, transparent: true, depthTest: true, depthWrite: false, 
+        polygonOffset: true, polygonOffsetFactor: -4, wireframe: false, roughness: 0.2
+    });
+    window.decalCache[key] = mat;
+    return mat;
+}
+
+// --- 5. Projector & Raycast Engine ---
 const raycaster = new THREE.Raycaster();
 const mirrorRaycaster = new THREE.Raycaster();
 const mouseVector = new THREE.Vector2();
@@ -259,138 +246,171 @@ function getIntersection(e) {
     return intersects.length > 0 ? intersects[0] : null;
 }
 
-// Helper to find the mirrored UV coordinate on the opposite side of the car
-function getMirroredUV(hit) {
-    // F1 cars are symmetrical across the X-axis
+function getMirroredHit(hit) {
     const mirroredPoint = hit.point.clone();
     mirroredPoint.x = -mirroredPoint.x; 
-
-    // Find the normal (surface direction) and flip it too
+    
     const normalMatrix = new THREE.Matrix3().getNormalMatrix(hit.object.matrixWorld);
     const mirroredNormal = hit.face.normal.clone().applyMatrix3(normalMatrix).normalize();
     mirroredNormal.x = -mirroredNormal.x;
 
-    // Shoot a ray from slightly "outside" the mirrored point, pointing inwards
     const origin = mirroredPoint.clone().add(mirroredNormal.clone().multiplyScalar(0.5));
     const direction = mirroredNormal.clone().negate();
     
     mirrorRaycaster.set(origin, direction);
     const mIntersects = mirrorRaycaster.intersectObjects(paintableMeshes, true);
-    
-    return mIntersects.length > 0 ? mIntersects[0].uv : null;
+    return mIntersects.length > 0 ? mIntersects[0] : null;
 }
 
-// Abstracted draw function to handle both primary and mirror strokes
-function applyStroke(ctx, uv, isGhost = false) {
-    if (!uv) return;
-    const cX = uv.x * 2048;
-    const cY = uv.y * 2048;
-    const size = parseInt(ui.size.value);
-    const color = ui.color.value;
+function applyDecal(hit, isGhost = false, flipRotation = false) {
+    const position = hit.point;
+    const normal = hit.face.normal.clone();
 
-    if (currentMode === 'brush') {
-        ctx.fillStyle = color;
-        ctx.beginPath();
-        ctx.arc(cX, cY, size, 0, Math.PI*2);
-        ctx.fill();
-    } else if (currentMode === 'decal') {
-        const rot = parseInt(ui.decalRot.value);
-        drawShape(ctx, cX, cY, size*2, rot, ui.decalType.value, color);
+    const dummy = new THREE.Object3D();
+    dummy.position.copy(position);
+    
+    const normalMatrix = new THREE.Matrix3().getNormalMatrix(hit.object.matrixWorld);
+    const worldNormal = normal.clone().applyMatrix3(normalMatrix).normalize();
+    
+    dummy.lookAt(position.clone().add(worldNormal));
+    
+    let rot = parseInt(ui.decalRot.value);
+    if (flipRotation) rot = -rot;
+    dummy.rotateZ(rot * Math.PI / 180);
+
+    const sizeVal = parseInt(ui.size.value) / 100;
+    const scale = new THREE.Vector3(sizeVal, sizeVal, sizeVal);
+
+    const decalGeo = new THREE.DecalGeometry(hit.object, position, dummy.rotation, scale);
+    const decalMat = createDecalMaterial(ui.decalType.value, ui.color.value);
+    
+    if (isGhost) {
+        const ghostMat = decalMat.clone();
+        ghostMat.opacity = 0.5;
+        const ghostMesh = new THREE.Mesh(decalGeo, ghostMat);
+        scene.add(ghostMesh);
+        return ghostMesh; 
+    } else {
+        const decalMesh = new THREE.Mesh(decalGeo, decalMat);
+        scene.add(decalMesh);
+        return decalMesh;
     }
 }
 
-// Hover/Preview Logic
+function clearGhosts() {
+    activeGhostMeshes.forEach(mesh => scene.remove(mesh));
+    activeGhostMeshes = [];
+}
+
+// Hover Logic
 window.addEventListener('mousemove', (e) => {
     if (currentMode === 'camera') return;
     
+    clearGhosts();
+    
     const hit = getIntersection(e);
-    if (!hit || !hit.uv) {
-        if (!isPainting) updateRenderCanvas(); 
+    if (!hit) {
+        if (!isPainting) updateRenderCanvas();
         return;
     }
 
-    if (currentMode === 'brush' && isPainting) {
-        // Active Brushing (Commit directly to Base)
-        applyStroke(bCtx, hit.uv);
-        if (isMirrorMode) applyStroke(bCtx, getMirroredUV(hit));
-        updateRenderCanvas();
-    } 
-    else if (!isPainting) {
-        // Ghost Preview
-        updateRenderCanvas((ctx) => {
-            applyStroke(ctx, hit.uv, true);
-            if (isMirrorMode) applyStroke(ctx, getMirroredUV(hit), true);
-        });
+    if (currentMode === 'brush') {
+        if (isPainting && hit.uv) {
+            // Commit stroke to canvas immediately
+            const cX = hit.uv.x * 2048; const cY = hit.uv.y * 2048;
+            bCtx.fillStyle = ui.color.value; bCtx.beginPath(); bCtx.arc(cX, cY, parseInt(ui.size.value)/5, 0, Math.PI*2); bCtx.fill();
+            
+            if (isMirrorMode) {
+                const mHit = getMirroredHit(hit);
+                if (mHit && mHit.uv) {
+                    const mx = mHit.uv.x * 2048; const my = mHit.uv.y * 2048;
+                    bCtx.beginPath(); bCtx.arc(mx, my, parseInt(ui.size.value)/5, 0, Math.PI*2); bCtx.fill();
+                }
+            }
+            updateRenderCanvas();
+        } else if (!isPainting) {
+            // Draw Brush Preview Ghost
+            updateRenderCanvas((ctx) => {
+                if (hit.uv) {
+                    ctx.fillStyle = ui.color.value; ctx.beginPath(); ctx.arc(hit.uv.x * 2048, hit.uv.y * 2048, parseInt(ui.size.value)/5, 0, Math.PI*2); ctx.fill();
+                }
+                if (isMirrorMode) {
+                    const mHit = getMirroredHit(hit);
+                    if (mHit && mHit.uv) {
+                        ctx.beginPath(); ctx.arc(mHit.uv.x * 2048, mHit.uv.y * 2048, parseInt(ui.size.value)/5, 0, Math.PI*2); ctx.fill();
+                    }
+                }
+            });
+        }
+    } else if (currentMode === 'decal' && !isPainting) {
+        // Draw 3D Decal Ghost
+        activeGhostMeshes.push(applyDecal(hit, true, false));
+        if (isMirrorMode) {
+            const mHit = getMirroredHit(hit);
+            if (mHit) activeGhostMeshes.push(applyDecal(mHit, true, true));
+        }
     }
 });
 
 // Commit Logic
 window.addEventListener('mousedown', (e) => {
     if (currentMode === 'camera') return;
-    
     const hit = getIntersection(e);
-    if (!hit || !hit.uv) return;
+    if (!hit) return;
 
     saveState();
-    
-    if (hit.object.material && hit.object.material.map !== canvasTexture) {
-        hit.object.material.map = canvasTexture;
-        hit.object.material.needsUpdate = true;
-    }
+    const createdMeshes = [];
 
-    if (currentMode === 'brush') isPainting = true;
-    
-    applyStroke(bCtx, hit.uv);
-    if (isMirrorMode) applyStroke(bCtx, getMirroredUV(hit));
-    
-    updateRenderCanvas();
+    if (currentMode === 'brush' && hit.uv) {
+        isPainting = true;
+        const cX = hit.uv.x * 2048; const cY = hit.uv.y * 2048;
+        bCtx.fillStyle = ui.color.value; bCtx.beginPath(); bCtx.arc(cX, cY, parseInt(ui.size.value)/5, 0, Math.PI*2); bCtx.fill();
+        
+        if (isMirrorMode) {
+            const mHit = getMirroredHit(hit);
+            if (mHit && mHit.uv) {
+                const mx = mHit.uv.x * 2048; const my = mHit.uv.y * 2048;
+                bCtx.beginPath(); bCtx.arc(mx, my, parseInt(ui.size.value)/5, 0, Math.PI*2); bCtx.fill();
+            }
+        }
+        updateRenderCanvas();
+    } else if (currentMode === 'decal') {
+        clearGhosts();
+        createdMeshes.push(applyDecal(hit, false, false));
+        if (isMirrorMode) {
+            const mHit = getMirroredHit(hit);
+            if (mHit) createdMeshes.push(applyDecal(mHit, false, true));
+        }
+        registerMeshesToLastState(createdMeshes);
+    }
 });
 
 window.addEventListener('mouseup', () => isPainting = false);
 
-// --- 7. Load Model ---
+// --- 6. Load Model ---
 const loader = new THREE.GLTFLoader();
 loader.load('scene.gltf', (gltf) => {
     const carModel = gltf.scene;
-    
     carModel.traverse((node) => {
         if (node.isMesh) {
-            node.castShadow = true;
-            node.receiveShadow = true;
-            
-            const nodeIdentity = (node.name + (node.material ? node.material.name : '')).toLowerCase();
-            const isProtected = nodeIdentity.includes('wheel') || nodeIdentity.includes('tire') || nodeIdentity.includes('tyre') || nodeIdentity.includes('glass') || nodeIdentity.includes('halo');
-
-            if (!isProtected) {
+            node.castShadow = true; node.receiveShadow = true;
+            const id = (node.name + (node.material ? node.material.name : '')).toLowerCase();
+            if (!id.includes('wheel') && !id.includes('tire') && !id.includes('glass')) {
                 paintableMeshes.push(node); 
                 if (node.material) {
-                    node.material.map = canvasTexture;
-                    node.material.roughness = 0.15;
-                    node.material.metalness = 0.4;
-                    node.material.needsUpdate = true;
+                    node.material.map = canvasTexture; node.material.needsUpdate = true;
                 }
             }
         }
     });
-    
     const box = new THREE.Box3().setFromObject(carModel);
-    const center = box.getCenter(new THREE.Vector3());
-    carModel.position.sub(center);
-    controls.target.set(0, -0.2, 0);
-    controls.update();
+    carModel.position.sub(box.getCenter(new THREE.Vector3()));
     scene.add(carModel);
 });
 
-// --- 8. Core Loop ---
+// --- 7. Core Loop ---
 window.addEventListener('resize', () => {
-    camera.aspect = window.innerWidth / window.innerHeight;
-    camera.updateProjectionMatrix();
-    renderer.setSize(window.innerWidth, window.innerHeight);
+    camera.aspect = window.innerWidth / window.innerHeight; camera.updateProjectionMatrix(); renderer.setSize(window.innerWidth, window.innerHeight);
 });
-
-function animate() {
-    requestAnimationFrame(animate);
-    if (currentMode === 'camera') controls.update();
-    renderer.render(scene, camera);
-}
+function animate() { requestAnimationFrame(animate); if (currentMode === 'camera') controls.update(); renderer.render(scene, camera); }
 animate();
