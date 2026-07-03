@@ -198,7 +198,6 @@ function createDecalMaterial(type, color) {
     const texture = new THREE.CanvasTexture(dCanvas);
     texture.anisotropy = renderer.capabilities.getMaxAnisotropy();
 
-    // With the shell removed, decals only need a slight polygon offset from the base car
     const mat = new THREE.MeshStandardMaterial({
         map: texture, transparent: true, depthTest: true, depthWrite: false, 
         polygonOffset: true, polygonOffsetFactor: -4, polygonOffsetUnits: -4, 
@@ -236,14 +235,12 @@ function applyDecal(hit, isGhost = false) {
     dummy.rotateZ(rot * Math.PI / 180);
 
     const sizeVal = parseInt(ui.size.value) / 100;
-    // Tighter projection depth prevents decals from shooting through the whole car
     const projectionDepth = Math.min(sizeVal * 0.5, 1.0); 
     const scale = new THREE.Vector3(sizeVal, sizeVal, projectionDepth);
 
     const decalMat = createDecalMaterial(ui.decalType.value, ui.color.value);
     const decalGroup = new THREE.Group(); 
 
-    // Loop through ALL raw panels to ensure the decal spans across gaps smoothly
     paintableMeshes.forEach(mesh => {
         const decalGeo = new THREE.DecalGeometry(mesh, position, dummy.rotation, scale);
         
@@ -253,7 +250,7 @@ function applyDecal(hit, isGhost = false) {
                 decalMesh.material = decalMat.clone();
                 decalMesh.material.opacity = 0.5;
             }
-            decalMesh.receiveShadow = true; // Decals receive shadows but shouldn't cast them
+            decalMesh.receiveShadow = true; 
             decalGroup.add(decalMesh);
         }
     });
@@ -342,9 +339,9 @@ window.addEventListener('mousedown', (e) => {
     }
 });
 
-// --- 6. Direct Mesh Loading System (WITH MATERIAL DICTIONARY FIX) ---
+// --- 6. Direct Mesh Loading System (WITH SMART PARENT GROUPING) ---
 const loader = new THREE.GLTFLoader();
-const materialCache = {}; // THE FIX: Cache materials so linked shards stay linked
+const materialCache = {}; 
 
 loader.load('scene.gltf', (gltf) => {
     const carModel = gltf.scene;
@@ -357,19 +354,17 @@ loader.load('scene.gltf', (gltf) => {
             
             if (!id.includes('wheel') && !id.includes('tire') && !id.includes('glass')) {
                 
-                // THE FIX: Group by original material name instead of isolating every node
                 if (node.material) {
-                    // Get the original name or ID of the material from the GLTF
-                    const matKey = node.material.name || node.material.uuid;
+                    const parentId = node.parent ? node.parent.uuid : 'root';
+                    const matName = node.material.name || 'unnamed';
+                    const groupKey = parentId + "_" + matName;
                     
-                    if (!materialCache[matKey]) {
-                        // If we haven't seen this material yet, clone it and set default color
-                        materialCache[matKey] = node.material.clone();
-                        materialCache[matKey].color.setHex(0xffffff); 
+                    if (!materialCache[groupKey]) {
+                        materialCache[groupKey] = node.material.clone();
+                        materialCache[groupKey].color.setHex(0xffffff); 
                     }
                     
-                    // Assign the shared, cached material to this node
-                    node.material = materialCache[matKey];
+                    node.material = materialCache[groupKey];
                     node.material.needsUpdate = true;
                 }
                 
