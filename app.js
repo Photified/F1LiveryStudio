@@ -3,8 +3,9 @@ const container = document.getElementById('viewport3d');
 const scene = new THREE.Scene();
 scene.background = new THREE.Color('#1a1a1a');
 
+// Adjusted camera position to perfectly match your diagonal screenshot orientation
 const camera = new THREE.PerspectiveCamera(45, window.innerWidth / window.innerHeight, 0.1, 100);
-camera.position.set(0, 2, 5);
+camera.position.set(-4.5, 2.0, 4.5); 
 
 const renderer = new THREE.WebGLRenderer({ antialias: true });
 renderer.setSize(window.innerWidth, window.innerHeight);
@@ -40,7 +41,7 @@ paintCanvas.height = 2048;
 const pCtx = paintCanvas.getContext('2d');
 
 const canvasTexture = new THREE.CanvasTexture(paintCanvas);
-canvasTexture.flipY = false; // Synchronize directly with GLTF layout rules
+canvasTexture.flipY = false;
 
 // Load your downloaded model's default map into our active painter
 const baseMapImage = new Image();
@@ -51,9 +52,9 @@ baseMapImage.onload = () => {
 };
 
 // --- 5. UI Elements & State Tracking ---
-let currentMode = 'camera'; // Options: camera, brush, bucket, decal
+let currentMode = 'camera'; 
 let isPainting = false;
-let carMesh = null;
+let paintableMeshes = []; // Stores all car parts so we can paint anywhere
 
 const modeCamera = document.getElementById('mode-camera');
 const modeBrush = document.getElementById('mode-brush');
@@ -70,17 +71,39 @@ function setMode(mode) {
     [modeCamera, modeBrush, modeBucket, modeDecal].forEach(b => b.classList.remove('active'));
     decalSelectWrap.style.display = (mode === 'decal') ? 'flex' : 'none';
     
-    if (mode === 'camera') {
-        controls.enabled = true;
-    } else {
-        controls.enabled = false; // Lock camera movement during paint mode
-    }
+    // Lock camera movement during paint mode
+    controls.enabled = (mode === 'camera');
 }
 
-modeCamera.addEventListener('click', () => setMode('camera'));
-modeBrush.addEventListener('click', () => setMode('brush'));
-modeBucket.addEventListener('click', () => setMode('bucket'));
-modeDecal.addEventListener('click', () => setMode('decal'));
+modeCamera.addEventListener('click', () => {
+    setMode('camera');
+    modeCamera.classList.add('active');
+});
+
+modeBrush.addEventListener('click', () => {
+    setMode('brush');
+    modeBrush.classList.add('active');
+});
+
+modeDecal.addEventListener('click', () => {
+    setMode('decal');
+    modeDecal.classList.add('active');
+});
+
+// Instant Fill Bucket Tool
+modeBucket.addEventListener('click', () => {
+    pCtx.fillStyle = paintColor.value;
+    pCtx.fillRect(0, 0, paintCanvas.width, paintCanvas.height);
+    canvasTexture.needsUpdate = true;
+    
+    // Apply texture to all meshes just in case it wasn't mapped yet
+    paintableMeshes.forEach(mesh => {
+        if (mesh.material) {
+            mesh.material.map = canvasTexture;
+            mesh.material.needsUpdate = true;
+        }
+    });
+});
 
 // --- 6. Load Your F1 Car Model ---
 const loader = new THREE.GLTFLoader();
@@ -91,10 +114,10 @@ loader.load('scene.gltf', (gltf) => {
         if (node.isMesh) {
             node.castShadow = true;
             node.receiveShadow = true;
+            paintableMeshes.push(node); // Add every mesh to the hit detection array
             
-            // Link your custom paint texture directly to the bodywork material
-            if (node.material && node.material.name.toLowerCase().includes('livery')) {
-                carMesh = node; // Lock reference onto the painted bodywork
+            // Automatically assign the paint canvas to the main bodywork if it already has a texture
+            if (node.material && node.material.map) {
                 node.material.map = canvasTexture;
                 node.material.roughness = 0.15;
                 node.material.metalness = 0.4;
@@ -103,10 +126,15 @@ loader.load('scene.gltf', (gltf) => {
         }
     });
     
-    // Auto-center and fit your model into frame
+    // Auto-center the car in the 3D world
     const box = new THREE.Box3().setFromObject(carModel);
     const center = box.getCenter(new THREE.Vector3());
     carModel.position.sub(center);
+    
+    // Lock the camera orbit target exactly onto the car's center
+    controls.target.copy(center);
+    controls.update();
+
     scene.add(carModel);
 }, undefined, (err) => console.error("Error loading model files:", err));
 
@@ -115,19 +143,27 @@ const raycaster = new THREE.Raycaster();
 const mouseVector = new THREE.Vector2();
 
 function projectDraw(e) {
-    if (!carMesh) return;
+    if (paintableMeshes.length === 0) return;
 
-    // Convert screen coordinates to normalized device coordinates (-1 to +1)
+    // Convert screen coordinates to normalized device coordinates
     mouseVector.x = (e.clientX / window.innerWidth) * 2 - 1;
     mouseVector.y = -(e.clientY / window.innerHeight) * 2 + 1;
 
     raycaster.setFromCamera(mouseVector, camera);
-    const intersects = raycaster.intersectObject(carMesh, true);
+    
+    // Check for collisions against ALL parts of the car
+    const intersects = raycaster.intersectObjects(paintableMeshes, true);
 
     if (intersects.length > 0) {
         const hit = intersects[0];
+        const hitMesh = hit.object;
+
+        // Forcefully ensure the part you clicked has the paint texture applied
+        if (hitMesh.material && hitMesh.material.map !== canvasTexture) {
+            hitMesh.material.map = canvasTexture;
+            hitMesh.material.needsUpdate = true;
+        }
         
-        // Ensure the model hit contains valid 2D map projection coordinates
         if (hit.uv) {
             const canvasX = hit.uv.x * paintCanvas.width;
             const canvasY = hit.uv.y * paintCanvas.height;
@@ -159,17 +195,14 @@ function projectDraw(e) {
                     pCtx.arc(0, 0, size, 0, Math.PI * 2);
                     pCtx.fill();
                 }
-                setMode('camera'); // Drop down to camera mode after stamp execution
-                modeCamera.classList.add('active');
-            } else if (currentMode === 'bucket') {
-                // Flood color across the base skin canvas texture
-                pCtx.fillRect(0, 0, paintCanvas.width, paintCanvas.height);
-                setMode('camera');
+                
+                // Drop back to camera mode immediately after placing one decal
+                setMode('camera'); 
                 modeCamera.classList.add('active');
             }
 
             pCtx.restore();
-            canvasTexture.needsUpdate = true; // Tell WebGL to re-render skin
+            canvasTexture.needsUpdate = true; 
         }
     }
 }
