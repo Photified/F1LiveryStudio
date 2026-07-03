@@ -1,4 +1,4 @@
-// --- 1. Scene, Camera, & Renderer ---
+// --- 1. Scene, Camera, Renderer ---
 const container = document.getElementById('viewport3d');
 const scene = new THREE.Scene();
 scene.background = new THREE.Color('#1a1a1a');
