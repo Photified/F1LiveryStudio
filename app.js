@@ -342,8 +342,9 @@ window.addEventListener('mousedown', (e) => {
     }
 });
 
-// --- 6. Direct Mesh Loading System ---
+// --- 6. Direct Mesh Loading System (WITH MATERIAL DICTIONARY FIX) ---
 const loader = new THREE.GLTFLoader();
+const materialCache = {}; // THE FIX: Cache materials so linked shards stay linked
 
 loader.load('scene.gltf', (gltf) => {
     const carModel = gltf.scene;
@@ -356,11 +357,19 @@ loader.load('scene.gltf', (gltf) => {
             
             if (!id.includes('wheel') && !id.includes('tire') && !id.includes('glass')) {
                 
-                // ISOLATED MATERIALS: Every mesh chunk gets its own unique material clone.
-                // This allows the Paint Bucket to target specific raw panels independently.
+                // THE FIX: Group by original material name instead of isolating every node
                 if (node.material) {
-                    node.material = node.material.clone();
-                    node.material.color.setHex(0xffffff); // Default start color
+                    // Get the original name or ID of the material from the GLTF
+                    const matKey = node.material.name || node.material.uuid;
+                    
+                    if (!materialCache[matKey]) {
+                        // If we haven't seen this material yet, clone it and set default color
+                        materialCache[matKey] = node.material.clone();
+                        materialCache[matKey].color.setHex(0xffffff); 
+                    }
+                    
+                    // Assign the shared, cached material to this node
+                    node.material = materialCache[matKey];
                     node.material.needsUpdate = true;
                 }
                 
