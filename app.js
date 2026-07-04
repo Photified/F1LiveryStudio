@@ -1,7 +1,7 @@
 // --- 1. Scene, Camera, & Renderer ---
 const container = document.getElementById('viewport3d');
 const scene = new THREE.Scene();
-scene.background = new THREE.Color('#0a0a0a'); // Pitch black studio void
+scene.background = new THREE.Color('#050505'); // Pitch black studio void
 
 const camera = new THREE.PerspectiveCamera(45, window.innerWidth / window.innerHeight, 0.1, 100);
 const renderer = new THREE.WebGLRenderer({ antialias: true, alpha: true });
@@ -11,7 +11,7 @@ renderer.shadowMap.enabled = true;
 renderer.shadowMap.type = THREE.PCFSoftShadowMap; 
 renderer.outputEncoding = THREE.sRGBEncoding; 
 renderer.toneMapping = THREE.ACESFilmicToneMapping;
-renderer.toneMappingExposure = 1.0; 
+renderer.toneMappingExposure = 1.1; // Boosted to make car paint pop in the dark studio
 
 container.appendChild(renderer.domElement);
 
@@ -20,20 +20,19 @@ const pmremGenerator = new THREE.PMREMGenerator(renderer);
 scene.environment = pmremGenerator.fromScene(new THREE.RoomEnvironment(), 0.04).texture;
 
 // Moody Ambient Light
-scene.add(new THREE.AmbientLight(0xffffff, 0.2));
+scene.add(new THREE.AmbientLight(0xffffff, 0.3));
 
-// NEW: Dramatic Focused Spotlight
-const topLight = new THREE.SpotLight(0xffffff, 4.0);
-topLight.position.set(0, 15, 0);
-topLight.angle = Math.PI / 4; // 45 degree cone
-topLight.penumbra = 0.5; // Soft edges on the beam
-topLight.decay = 1.5;
-topLight.distance = 50;
+// Dramatic Studio Top Light (Using Directional for reliable exposure, with a soft vignette floor)
+const topLight = new THREE.DirectionalLight(0xffffff, 1.5);
 topLight.castShadow = true;
 topLight.shadow.mapSize.width = 2048;
 topLight.shadow.mapSize.height = 2048;
 topLight.shadow.camera.near = 0.5;
-topLight.shadow.camera.far = 30;
+topLight.shadow.camera.far = 40;
+topLight.shadow.camera.left = -20;
+topLight.shadow.camera.right = 20;
+topLight.shadow.camera.top = 20;
+topLight.shadow.camera.bottom = -20;
 topLight.shadow.bias = -0.0001;
 scene.add(topLight);
 
@@ -45,19 +44,19 @@ function generateCementTexture() {
     const ctx = canvas.getContext('2d');
     
     // Base dark grey cement
-    ctx.fillStyle = '#222222';
+    ctx.fillStyle = '#2a2a2a';
     ctx.fillRect(0, 0, 1024, 1024);
     
     // Noise particles for concrete grain
-    for (let i = 0; i < 80000; i++) {
-        ctx.fillStyle = Math.random() > 0.5 ? 'rgba(255,255,255,0.02)' : 'rgba(0,0,0,0.06)';
+    for (let i = 0; i < 150000; i++) {
+        ctx.fillStyle = Math.random() > 0.5 ? 'rgba(255,255,255,0.03)' : 'rgba(0,0,0,0.06)';
         ctx.fillRect(Math.random() * 1024, Math.random() * 1024, Math.random() * 2, Math.random() * 2);
     }
     
     // Heavy Spotlight Vignette (Fades to pitch black at edges)
-    const rGrad = ctx.createRadialGradient(512, 512, 200, 512, 512, 600);
+    const rGrad = ctx.createRadialGradient(512, 512, 120, 512, 512, 512);
     rGrad.addColorStop(0, 'rgba(0,0,0,0)');
-    rGrad.addColorStop(1, 'rgba(0,0,0,0.9)');
+    rGrad.addColorStop(1, 'rgba(0,0,0,0.95)');
     ctx.fillStyle = rGrad;
     ctx.fillRect(0, 0, 1024, 1024);
     
@@ -69,8 +68,8 @@ function generateWallTexture() {
     canvas.width = 512; canvas.height = 512;
     const ctx = canvas.getContext('2d');
     
-    // Base dark wall
-    ctx.fillStyle = '#151515'; 
+    // Base almost-black wall
+    ctx.fillStyle = '#0a0a0a'; 
     ctx.fillRect(0, 0, 512, 512);
     
     // Vertical shadow gradient (Pitch black at floor and ceiling)
@@ -97,10 +96,10 @@ function generateWallTexture() {
 // Setup the Square Cement Floor Pedestal
 const floorGeo = new THREE.BoxGeometry(80, 0.5, 80); 
 const floorMat = new THREE.MeshStandardMaterial({ 
-    color: 0x666666, 
+    color: 0x888888, 
     map: generateCementTexture(),
     roughness: 0.8, 
-    metalness: 0.1 
+    metalness: 0.2 
 });
 const studioFloor = new THREE.Mesh(floorGeo, floorMat);
 studioFloor.receiveShadow = true;
@@ -110,7 +109,7 @@ scene.add(studioFloor);
 // Setup the Room/Paint Booth
 const boothGeo = new THREE.BoxGeometry(80, 40, 80); 
 const boothMat = new THREE.MeshStandardMaterial({
-    color: 0x111111, 
+    color: 0x222222, 
     map: generateWallTexture(),
     side: THREE.DoubleSide, 
     roughness: 1.0,
@@ -126,30 +125,18 @@ controls.enableDamping = true;
 controls.dampingFactor = 0.05;
 controls.maxDistance = 35; // Keeps user inside the room
 
+// FIXED: Rock-solid angle lock prevents camera from EVER going under the floor. No crashing math!
+controls.maxPolarAngle = Math.PI / 2 - 0.02; 
+
 let activeCamView = 'iso'; 
 
 function getCamDist() { return window.innerWidth < 650 ? 25 : 10; }
 
-function getCamOffsetY(view) { 
-    if (window.innerWidth < 650) return -5.5; 
-    
-    switch(view) {
-        case 'side': return -1.5;  
-        case 'top': return -4.5;   
-        case 'iso': return -1.5;   
-        case 'front': return -3.5; 
-        case 'back': return -3.5;  
-        default: return -1.5;
-    }
-}
-
-controls.target.set(0, getCamOffsetY(activeCamView), 0); 
-let sideToggleRight = true; 
+let globalTargetY = 0; // Dynamic target height based on car placement
 
 function updateCameraTo(view) {
     activeCamView = view;
     const d = getCamDist();
-    const yOff = getCamOffsetY(view);
     
     let tZ = 0;
     let cZ = 0;
@@ -160,21 +147,20 @@ function updateCameraTo(view) {
     }
     
     const views = {
-        side: new THREE.Vector3(sideToggleRight ? d : -d, 2.0, 0),
-        front: new THREE.Vector3(0, 3.5, d),
-        back: new THREE.Vector3(0, 3.5, -d),
-        top: new THREE.Vector3(0, d * 1.8, cZ),
-        iso: new THREE.Vector3(-d*0.7, 2.5, d*0.7) 
+        side: new THREE.Vector3(sideToggleRight ? d : -d, globalTargetY + 0.5, 0),
+        front: new THREE.Vector3(0, globalTargetY + 1.0, d),
+        back: new THREE.Vector3(0, globalTargetY + 1.0, -d),
+        top: new THREE.Vector3(0, globalTargetY + d * 1.8, cZ),
+        iso: new THREE.Vector3(-d*0.7, globalTargetY + 2.0, d*0.7) 
     };
     
     if (views[view]) {
         camera.position.copy(views[view]);
-        camera.lookAt(0, yOff, tZ);
-        controls.target.set(0, yOff, tZ);
+        camera.lookAt(0, globalTargetY, tZ);
+        controls.target.set(0, globalTargetY, tZ);
         controls.update();
     }
 }
-updateCameraTo('iso'); 
 
 // --- 2. Advanced Layer Stacking Framework ---
 const mainDecalGroup = new THREE.Group();
@@ -369,6 +355,7 @@ document.querySelectorAll('.size-btn').forEach(btn => {
     });
 });
 
+let sideToggleRight = true; 
 document.querySelectorAll('.cam-btn').forEach(btn => {
     btn.addEventListener('click', (e) => {
         document.querySelectorAll('.cam-btn').forEach(b => b.classList.remove('active'));
@@ -933,16 +920,29 @@ loader.load(
         
         const finalBox = new THREE.Box3().setFromObject(carModel);
         const center = finalBox.getCenter(new THREE.Vector3());
-        carModel.position.sub(center);
+        carModel.position.sub(center); // Centers the car perfectly at 0,0,0
+
+        // SHIFT ENTIRE SCENE UP TO CLEAR BOTTOM UI
+        const verticalShift = window.innerWidth < 650 ? 3.0 : 1.5; 
+        carModel.position.y += verticalShift;
 
         // Position the floor perfectly beneath the tires
         const updatedBox = new THREE.Box3().setFromObject(carModel);
-        studioFloor.position.y = updatedBox.min.y - 0.25; 
+        studioFloor.position.y = updatedBox.min.y - 0.05; 
         studioFloor.visible = true;
         
-        // Position walls so they sit safely around the floor
+        // Position walls safely around the floor
         paintBooth.position.y = studioFloor.position.y + 19.5; 
         paintBooth.visible = true;
+
+        // Position Toplight Relative to the new floor height
+        topLight.position.set(0, studioFloor.position.y + 18, 0);
+
+        // LOCK CAMERA TARGET TO THE FLOOR
+        // This ensures the floor is in the vertical center of the screen, pushing the car into the upper half!
+        globalTargetY = studioFloor.position.y;
+        controls.target.set(0, globalTargetY, 0);
+        updateCameraTo('iso');
 
         const targetMeshes = [];
         carModel.traverse((node) => {
@@ -1020,27 +1020,13 @@ window.addEventListener('resize', () => {
     camera.aspect = window.innerWidth / window.innerHeight; 
     camera.updateProjectionMatrix(); 
     renderer.setSize(window.innerWidth, window.innerHeight);
-    controls.target.set(0, getCamOffsetY(activeCamView), 0);
+    controls.target.set(0, globalTargetY, 0);
     controls.update();
 });
 
 function animate() { 
     requestAnimationFrame(animate); 
     
-    // --- SAFE CAMERA FLOOR LOCK ---
-    if (studioFloor.visible) {
-        // Prevent camera from dipping below the cement pad
-        const floorLimit = studioFloor.position.y + 0.1; 
-        const dist = Math.max(0.1, controls.getDistance());
-        const yDiff = floorLimit - controls.target.y;
-        
-        // Strict Math.clamp to prevent NaN void crashes!
-        let ratio = yDiff / dist;
-        ratio = Math.max(-1, Math.min(1, ratio)); 
-        
-        controls.maxPolarAngle = Math.acos(ratio);
-    }
-
     if (controls.enabled) controls.update(); 
     
     if (textureNeedsGPUUpdate) {
