@@ -112,7 +112,6 @@ const ui = {
     decalWrap: document.getElementById('decal-select-wrap'),
     decalRot: document.getElementById('decalRot'),
     decalSize: document.getElementById('toolSize'),
-    commitDecalBtn: document.getElementById('commitDecalBtn'),
     undoBtn: document.getElementById('undoBtn'),
     resetBtn: document.getElementById('resetBtn'),
     helpBtn: document.getElementById('helpBtn'),
@@ -179,7 +178,8 @@ document.querySelectorAll('.decal-btn').forEach(btn => {
 });
 
 // Color System Logic (Native + Recent)
-let recentColors = ['#e10600', '#ffffff', '#000000', '#007aff'];
+// Added McLaren Papaya, Aston Martin Green, Mercedes Teal, and Racing Yellow
+let recentColors = ['#e10600', '#ffffff', '#000000', '#007aff', '#ff8700', '#006f62', '#00a19c', '#ffd500'];
 
 function renderRecentColors() {
     ui.recentColorsWrap.innerHTML = '';
@@ -206,7 +206,8 @@ ui.nativeColorPicker.addEventListener('input', (e) => {
 ui.nativeColorPicker.addEventListener('change', () => {
     if (!recentColors.includes(currentColor)) {
         recentColors.unshift(currentColor);
-        if (recentColors.length > 5) recentColors.pop(); 
+        // Increased from 5 to 12 max swatches
+        if (recentColors.length > 12) recentColors.pop(); 
         renderRecentColors();
     }
 });
@@ -492,7 +493,6 @@ function refreshLivePreview() {
     const rotVal = parseInt(ui.decalRot.value);
     const sizeVal = parseInt(ui.decalSize.value) / 100;
     
-    // Fix: Now correctly uses the activeDecalType variable instead of the missing element
     projectStamp(liveDecalHitData.point, liveDecalHitData.normal, rotVal, sizeVal, activeDecalType, currentColor, globalRenderOrder + 50, true);
 }
 
@@ -570,7 +570,6 @@ domCanvas.addEventListener('pointerup', (e) => {
         const rotVal = parseInt(ui.decalRot.value);
         const sizeVal = parseInt(ui.decalSize.value) / 100;
 
-        // Fix: Use activeDecalType for the stamp commit too
         const meshes = projectStamp(liveDecalHitData.point, liveDecalHitData.normal, rotVal, sizeVal, activeDecalType, currentColor, globalRenderOrder, false);
         stampHistory.push({ point: liveDecalHitData.point.clone(), normal: liveDecalHitData.normal.clone(), rot: rotVal, size: sizeVal, shape: activeDecalType, color: currentColor, zIndex: globalRenderOrder });
         
@@ -583,22 +582,6 @@ domCanvas.addEventListener('pointerup', (e) => {
             actionHistory.push({ type: 'bucket', mesh: hit.object, oldColor: hit.object.material.color.getHex() });
             hit.object.material.color.set(currentColor);
         }
-    }
-});
-
-ui.commitDecalBtn.addEventListener('click', () => {
-    if (currentMode === 'decal' && liveDecalHitData) {
-        const rotVal = parseInt(ui.decalRot.value);
-        const sizeVal = parseInt(ui.decalSize.value) / 100;
-        
-        const meshes = projectStamp(liveDecalHitData.point, liveDecalHitData.normal, rotVal, sizeVal, activeDecalType, currentColor, globalRenderOrder, false);
-        stampHistory.push({ point: liveDecalHitData.point.clone(), normal: liveDecalHitData.normal.clone(), rot: rotVal, size: sizeVal, shape: activeDecalType, color: currentColor, zIndex: globalRenderOrder });
-        
-        actionHistory.push({ type: 'decal', meshes: meshes });
-        globalRenderOrder++; 
-        
-        clearGhosts();
-        liveDecalHitData = null; 
     }
 });
 
