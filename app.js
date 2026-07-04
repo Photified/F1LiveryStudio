@@ -22,7 +22,7 @@ scene.environment = pmremGenerator.fromScene(new THREE.RoomEnvironment(), 0.04).
 // Moody Ambient Light
 scene.add(new THREE.AmbientLight(0xffffff, 0.3));
 
-// Dramatic Studio Top Light (Using Directional for reliable exposure, with a soft vignette floor)
+// Dramatic Studio Top Light
 const topLight = new THREE.DirectionalLight(0xffffff, 1.5);
 topLight.castShadow = true;
 topLight.shadow.mapSize.width = 2048;
@@ -72,7 +72,7 @@ function generateWallTexture() {
     ctx.fillStyle = '#0a0a0a'; 
     ctx.fillRect(0, 0, 512, 512);
     
-    // Vertical shadow gradient (Pitch black at floor and ceiling)
+    // Vertical shadow gradient
     const vGrad = ctx.createLinearGradient(0, 0, 0, 512);
     vGrad.addColorStop(0, 'rgba(0,0,0,1.0)'); 
     vGrad.addColorStop(0.2, 'rgba(0,0,0,0)');
@@ -81,7 +81,7 @@ function generateWallTexture() {
     ctx.fillStyle = vGrad;
     ctx.fillRect(0, 0, 512, 512);
     
-    // Horizontal shadow gradient (Pitch black in corners)
+    // Horizontal shadow gradient
     const hGrad = ctx.createLinearGradient(0, 0, 512, 0);
     hGrad.addColorStop(0, 'rgba(0,0,0,1.0)'); 
     hGrad.addColorStop(0.2, 'rgba(0,0,0,0)');
@@ -125,7 +125,7 @@ controls.enableDamping = true;
 controls.dampingFactor = 0.05;
 controls.maxDistance = 35; // Keeps user inside the room
 
-// FIXED: Rock-solid angle lock prevents camera from EVER going under the floor. No crashing math!
+// Rock-solid angle lock prevents camera from EVER going under the floor
 controls.maxPolarAngle = Math.PI / 2 - 0.02; 
 
 let activeCamView = 'iso'; 
@@ -355,7 +355,7 @@ document.querySelectorAll('.size-btn').forEach(btn => {
     });
 });
 
-let sideToggleRight = true; 
+let sideToggleRight = true;
 document.querySelectorAll('.cam-btn').forEach(btn => {
     btn.addEventListener('click', (e) => {
         document.querySelectorAll('.cam-btn').forEach(b => b.classList.remove('active'));
@@ -617,7 +617,7 @@ function drawShape(ctx, x, y, size, type, color) {
         ctx.fillStyle = solidColor;
         const spacing = size * 0.25;
         for (let x = -size; x <= size; x += spacing) {
-            for (let y = -size; y <= size; y += spacing) {
+            for (let y = -size; y y <= size; y += spacing) {
                 const dist = Math.sqrt(x*x + y*y);
                 if (dist < size) {
                     const radius = (1 - (dist / size)) * (spacing * 0.4);
@@ -920,15 +920,16 @@ loader.load(
         
         const finalBox = new THREE.Box3().setFromObject(carModel);
         const center = finalBox.getCenter(new THREE.Vector3());
-        carModel.position.sub(center); // Centers the car perfectly at 0,0,0
+        carModel.position.sub(center);
 
         // SHIFT ENTIRE SCENE UP TO CLEAR BOTTOM UI
         const verticalShift = window.innerWidth < 650 ? 3.0 : 1.5; 
         carModel.position.y += verticalShift;
 
-        // Position the floor perfectly beneath the tires
+        // FIXED: The floor box has a thickness of 0.5. 
+        // We subtract exactly half its thickness (0.25) so its top edge sits perfectly under the tires.
         const updatedBox = new THREE.Box3().setFromObject(carModel);
-        studioFloor.position.y = updatedBox.min.y - 0.05; 
+        studioFloor.position.y = updatedBox.min.y - 0.25; 
         studioFloor.visible = true;
         
         // Position walls safely around the floor
@@ -939,7 +940,6 @@ loader.load(
         topLight.position.set(0, studioFloor.position.y + 18, 0);
 
         // LOCK CAMERA TARGET TO THE FLOOR
-        // This ensures the floor is in the vertical center of the screen, pushing the car into the upper half!
         globalTargetY = studioFloor.position.y;
         controls.target.set(0, globalTargetY, 0);
         updateCameraTo('iso');
