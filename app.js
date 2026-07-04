@@ -215,41 +215,82 @@ ui.decalType.addEventListener('change', updateLiveDecalPreview);
 ui.decalSize.addEventListener('input', updateLiveDecalPreview);
 ui.decalRot.addEventListener('input', updateLiveDecalPreview);
 
-// --- 4. Geometry and Texture Generators ---
+// --- 4. Geometry and Texture Generators (F1 STYLE) ---
 function drawShape(ctx, x, y, size, type, color) {
-    ctx.save(); ctx.fillStyle = color; ctx.translate(x, y);
+    ctx.save(); 
+    ctx.translate(x, y);
 
-    if (type === 'star') {
+    // Convert HEX to RGBA for smooth gradient transitions
+    let r = 0, g = 0, b = 0;
+    if (color.startsWith('#')) {
+        const hex = color.replace('#', '');
+        r = parseInt(hex.substring(0,2), 16);
+        g = parseInt(hex.substring(2,4), 16);
+        b = parseInt(hex.substring(4,6), 16);
+    }
+    const solidColor = `rgba(${r},${g},${b},1)`;
+    const clearColor = `rgba(${r},${g},${b},0)`;
+
+    if (type === 'solid-stripe') {
+        ctx.fillStyle = solidColor;
+        ctx.fillRect(-size/2, -size*2, size, size*4);
+    } 
+    else if (type === 'fade-stripe') {
+        const grad = ctx.createLinearGradient(0, -size*2, 0, size*2);
+        grad.addColorStop(0, solidColor);
+        grad.addColorStop(1, clearColor);
+        ctx.fillStyle = grad;
+        ctx.fillRect(-size/2, -size*2, size, size*4);
+    } 
+    else if (type === 'chevron-sharp') {
+        ctx.fillStyle = solidColor;
+        ctx.beginPath(); 
+        ctx.moveTo(-size/2, -size); 
+        ctx.lineTo(size/2, 0); 
+        ctx.lineTo(-size/2, size); 
+        ctx.lineTo(-size/4, 0); 
+        ctx.closePath(); 
+        ctx.fill();
+    } 
+    else if (type === 'chevron-fade') {
+        const grad = ctx.createLinearGradient(-size/2, 0, size/2, 0);
+        grad.addColorStop(0, clearColor);
+        grad.addColorStop(1, solidColor);
+        ctx.fillStyle = grad;
+        ctx.beginPath(); 
+        ctx.moveTo(-size/2, -size); 
+        ctx.lineTo(size/2, 0); 
+        ctx.lineTo(-size/2, size); 
+        ctx.lineTo(-size/4, 0); 
+        ctx.closePath(); 
+        ctx.fill();
+    }
+    else if (type === 'speed-curve') {
+        ctx.fillStyle = solidColor;
+        ctx.beginPath(); 
+        ctx.moveTo(-size, size/2); 
+        ctx.quadraticCurveTo(0, -size, size, -size/2); 
+        ctx.quadraticCurveTo(size/2, -size/4, -size, size/2); 
+        ctx.closePath(); 
+        ctx.fill();
+    } 
+    else if (type === 'wedge') {
+        ctx.fillStyle = solidColor;
         ctx.beginPath();
-        for (let i = 0; i < 5; i++) {
-            ctx.lineTo(Math.cos((18+i*72)*Math.PI/180)*size, -Math.sin((18+i*72)*Math.PI/180)*size);
-            ctx.lineTo(Math.cos((54+i*72)*Math.PI/180)*(size/2), -Math.sin((54+i*72)*Math.PI/180)*(size/2));
-        }
-        ctx.closePath(); ctx.fill();
-    } else if (type === 'stripe') {
-        ctx.beginPath(); ctx.moveTo(-size/2, -size*2); ctx.lineTo(size/2, -size*1.5); ctx.lineTo(size/4, size*2); ctx.lineTo(-size/2, size*2); ctx.closePath(); ctx.fill();
-    } else if (type === 'circle') {
-        ctx.beginPath(); ctx.arc(0, 0, size, 0, Math.PI*2); ctx.fill();
-    } else if (type === 'checkered') {
-        const sq = size / 2;
-        ctx.fillRect(-sq, -sq, sq, sq); ctx.fillRect(0, 0, sq, sq); ctx.fillStyle = "#ffffff"; ctx.fillRect(0, -sq, sq, sq); ctx.fillRect(-sq, 0, sq, sq);
-    } else if (type === 'number1') {
-        ctx.font = `bold ${size*1.8}px Arial`; ctx.textAlign = 'center'; ctx.textBaseline = 'middle'; ctx.fillText("1", 0, 0);
-    } else if (type === 'triangle') {
-        ctx.beginPath(); ctx.moveTo(0, -size); ctx.lineTo(size * 0.866, size * 0.5); ctx.lineTo(-size * 0.866, size * 0.5); ctx.closePath(); ctx.fill();
-    } else if (type === 'hexagon') {
-        ctx.beginPath(); for (let i = 0; i < 6; i++) { ctx.lineTo(size * Math.cos(i * Math.PI / 3), size * Math.sin(i * Math.PI / 3)); } ctx.closePath(); ctx.fill();
-    } else if (type === 'chevron') {
-        ctx.beginPath(); ctx.moveTo(-size/2, -size/2); ctx.lineTo(size/2, 0); ctx.lineTo(-size/2, size/2); ctx.lineTo(-size/4, 0); ctx.closePath(); ctx.fill();
-    } else if (type === 'diamond') {
-        ctx.beginPath(); ctx.moveTo(0, -size); ctx.lineTo(size/1.5, 0); ctx.lineTo(0, size); ctx.lineTo(-size/1.5, 0); ctx.closePath(); ctx.fill();
-    } else if (type === 'swoosh') {
-        ctx.beginPath(); ctx.moveTo(-size, size/2); ctx.quadraticCurveTo(0, -size, size, -size/2); ctx.quadraticCurveTo(size/2, -size/4, -size, size/2); ctx.closePath(); ctx.fill();
-    } else if (type === 'cross') {
-        const w = size / 3; ctx.fillRect(-w/2, -size, w, size*2); ctx.fillRect(-size, -w/2, size*2, w);
-    } else if (type === 'square') {
+        ctx.moveTo(-size, -size);
+        ctx.lineTo(size, size);
+        ctx.lineTo(-size, size);
+        ctx.closePath();
+        ctx.fill();
+    }
+    else if (type === 'gradient-block') {
+        const grad = ctx.createRadialGradient(0, 0, 0, 0, 0, size);
+        grad.addColorStop(0, solidColor);
+        grad.addColorStop(1, clearColor);
+        ctx.fillStyle = grad;
         ctx.fillRect(-size, -size, size*2, size*2);
     }
+
     ctx.restore();
 }
 
@@ -260,15 +301,27 @@ function getDecalMaterial(type, color) {
 
     const dCanvas = document.createElement('canvas');
     dCanvas.width = 1024; dCanvas.height = 1024;
-    drawShape(dCanvas.getContext('2d'), 512, 512, 480, type, color);
+    const ctx = dCanvas.getContext('2d');
+    
+    // Ensure the canvas starts completely transparent
+    ctx.clearRect(0, 0, 1024, 1024);
+    drawShape(ctx, 512, 512, 480, type, color);
 
     const texture = new THREE.CanvasTexture(dCanvas);
     texture.anisotropy = renderer.capabilities.getMaxAnisotropy();
     texture.encoding = THREE.sRGBEncoding;
+    texture.needsUpdate = true; // FIX: Ensure GPU gets the fresh canvas immediately
 
     const mat = new THREE.MeshStandardMaterial({
-        map: texture, transparent: true, depthTest: true, depthWrite: false, 
-        polygonOffset: true, polygonOffsetFactor: -4, polygonOffsetUnits: -4, roughness: 0.2
+        map: texture, 
+        transparent: true, 
+        alphaTest: 0.05, // FIX: Cuts out invisible pixels to prevent rendering solid square bounds
+        depthTest: true, 
+        depthWrite: false, 
+        polygonOffset: true, 
+        polygonOffsetFactor: -4, 
+        polygonOffsetUnits: -4, 
+        roughness: 0.2
     });
     
     materialCache[key] = mat;
@@ -292,10 +345,8 @@ function getIntersection(clientX, clientY) {
 
 function executeUVBrush(hit) {
     if (!hit.uv) return;
-    
-    if (hit.object && hit.object.material && hit.object.material.color.getHex() !== 0xffffff) {
-        hit.object.material.color.setHex(0xffffff);
-    }
+
+    // The brush color override code has been successfully deleted from here.
 
     const x = hit.uv.x * 2048;
     const y = hit.uv.y * 2048;
