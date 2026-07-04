@@ -220,7 +220,6 @@ function drawShape(ctx, x, y, size, type, color) {
     ctx.save(); 
     ctx.translate(x, y);
 
-    // Convert HEX to RGBA for smooth gradient transitions
     let r = 0, g = 0, b = 0;
     if (color.startsWith('#')) {
         const hex = color.replace('#', '');
@@ -303,19 +302,17 @@ function getDecalMaterial(type, color) {
     dCanvas.width = 1024; dCanvas.height = 1024;
     const ctx = dCanvas.getContext('2d');
     
-    // Ensure the canvas starts completely transparent
     ctx.clearRect(0, 0, 1024, 1024);
     drawShape(ctx, 512, 512, 480, type, color);
 
     const texture = new THREE.CanvasTexture(dCanvas);
     texture.anisotropy = renderer.capabilities.getMaxAnisotropy();
     texture.encoding = THREE.sRGBEncoding;
-    texture.needsUpdate = true; // FIX: Ensure GPU gets the fresh canvas immediately
+    texture.needsUpdate = true; 
 
     const mat = new THREE.MeshStandardMaterial({
         map: texture, 
         transparent: true, 
-        alphaTest: 0.05, // FIX: Cuts out invisible pixels to prevent rendering solid square bounds
         depthTest: true, 
         depthWrite: false, 
         polygonOffset: true, 
@@ -346,7 +343,7 @@ function getIntersection(clientX, clientY) {
 function executeUVBrush(hit) {
     if (!hit.uv) return;
 
-    // The brush color override code has been successfully deleted from here.
+    // THE BUCKET-DELETING OVERRIDE HAS BEEN COMPLETELY REMOVED FROM HERE
 
     const x = hit.uv.x * 2048;
     const y = hit.uv.y * 2048;
@@ -368,7 +365,8 @@ function projectStamp(point, normal, rotation, size, shape, color, zIndex, isPre
     dummy.lookAt(point.clone().add(normal));
     dummy.rotateZ(rotation * Math.PI / 180);
 
-    const scale = new THREE.Vector3(size, size, Math.min(size, 2.0)); 
+    // FIXED: Projection depth hardcoded to 5.0 so it actually reaches the curved chassis
+    const scale = new THREE.Vector3(size, size, 5.0); 
     const mat = getDecalMaterial(shape, color);
     
     let renderMat = mat;
