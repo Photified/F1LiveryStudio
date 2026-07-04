@@ -142,7 +142,6 @@ ui.brush.addEventListener('click', () => setMode('brush'));
 ui.bucket.addEventListener('click', () => setMode('bucket'));
 ui.decal.addEventListener('click', () => setMode('decal'));
 
-// Custom Palette Logic
 document.querySelectorAll('.color-swatch').forEach(swatch => {
     swatch.addEventListener('click', (e) => {
         document.querySelectorAll('.color-swatch').forEach(s => s.classList.remove('active'));
@@ -257,7 +256,6 @@ function getIntersection(clientX, clientY) {
     return intersects.length > 0 ? intersects[0] : null;
 }
 
-// Crash-Proof Brush Function 
 function executeUVBrush(hit) {
     if (!hit.uv) return;
     const x = hit.uv.x * 2048;
@@ -329,7 +327,7 @@ let lastScreenPos = new THREE.Vector2();
 let gestureMoved = false;
 
 domCanvas.addEventListener('pointerdown', (e) => {
-    if (!e.isPrimary || e.target.closest('#control-center') || e.target.closest('.top-navbar')) return;
+    if (!e.isPrimary || e.target.closest('#control-center') || e.target.closest('.top-navbar') || e.target.closest('.camera-navbar')) return;
     touchStartPos.set(e.clientX, e.clientY);
     lastScreenPos.set(e.clientX, e.clientY);
     gestureMoved = false;
@@ -342,7 +340,7 @@ domCanvas.addEventListener('pointerdown', (e) => {
         isPainting = true;
         saveCanvasState();
         executeUVBrush(hit);
-        textureNeedsGPUUpdate = true; // Batches the upload to prevent crashes
+        textureNeedsGPUUpdate = true; 
     } else if (currentMode === 'decal') {
         controls.enabled = false; 
         liveDecalHitData = { point: hit.point.clone(), normal: hit.face.normal.clone() };
@@ -357,7 +355,6 @@ domCanvas.addEventListener('pointermove', (e) => {
     if (touchStartPos.distanceTo(currentPos) > 8) gestureMoved = true;
 
     if (currentMode === 'brush' && isPainting) {
-        // High-Speed Math Engine: Instantly fills dots between fast finger swipes
         const dist = lastScreenPos.distanceTo(currentPos);
         const steps = Math.max(1, Math.floor(dist / 3)); 
 
@@ -369,7 +366,7 @@ domCanvas.addEventListener('pointermove', (e) => {
             const hit = getIntersection(lerpX, lerpY);
             if (hit) executeUVBrush(hit);
         }
-        textureNeedsGPUUpdate = true; // Safe, background buffering.
+        textureNeedsGPUUpdate = true; 
         lastScreenPos.copy(currentPos);
 
     } else if (currentMode === 'decal' && liveDecalHitData) {
@@ -419,7 +416,6 @@ ui.commitDecalBtn.addEventListener('click', () => {
 ui.mirrorBtn.addEventListener('click', () => {
     if (activeCamView !== 'side') return;
     
-    // 1. Mirror Canvas Textures (Brush Strokes)
     saveCanvasState();
     const halfWidth = 1024; const height = 2048;
     const leftSide = pCtx.getImageData(0, 0, halfWidth, height);
@@ -438,7 +434,6 @@ ui.mirrorBtn.addEventListener('click', () => {
     pCtx.putImageData(rightSide, halfWidth, 0);
     textureNeedsGPUUpdate = true;
 
-    // 2. Mirror 3D Decal Meshes
     while(mirrorDecalGroup.children.length > 0) {
         const child = mirrorDecalGroup.children[0];
         child.geometry.dispose();
@@ -519,7 +514,7 @@ loader.load('scene.gltf', (gltf) => {
     scene.add(carModel);
 });
 
-// --- 7. Animation Loop (TEXTURE THROTTLER) ---
+// --- 7. Animation Loop ---
 window.addEventListener('resize', () => {
     camera.aspect = window.innerWidth / window.innerHeight; camera.updateProjectionMatrix(); renderer.setSize(window.innerWidth, window.innerHeight);
 });
@@ -528,8 +523,6 @@ function animate() {
     requestAnimationFrame(animate); 
     if (controls.enabled) controls.update(); 
     
-    // Limits the heavy GPU texture upload to a maximum of 60 times a second.
-    // This entirely prevents the memory crash when brushing on mobile.
     if (textureNeedsGPUUpdate) {
         canvasTexture.needsUpdate = true;
         textureNeedsGPUUpdate = false;

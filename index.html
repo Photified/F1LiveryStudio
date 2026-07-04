@@ -12,59 +12,68 @@
             touch-action: none; overscroll-behavior: none; 
         }
         
+        /* Top Layout Bar */
         .top-navbar {
-            width: 100%; height: 70px; background: #1a1a1a;
-            border-bottom: 1px solid #333; display: flex; 
+            width: 100%; height: 60px; background: #1a1a1a;
+            border-bottom: 1px solid #2a2a2a; display: flex; 
             align-items: center; justify-content: space-between;
             padding: 0 15px; box-sizing: border-box; z-index: 50;
         }
         .logo-container { height: 100%; display: flex; align-items: center; flex-grow: 1; justify-content: center; }
-        .app-logo { max-width: 80%; height: 45px; object-fit: contain; }
+        .app-logo { max-width: 80%; height: 38px; object-fit: contain; }
 
         .settings-cog {
             background: #2a2a2a; border: 1px solid #555; border-radius: 50%;
-            color: white; font-size: 18px; width: 40px; height: 40px;
+            color: white; font-size: 16px; width: 36px; height: 36px;
             display: flex; justify-content: center; align-items: center;
             cursor: pointer; transition: 0.3s; user-select: none;
         }
         .settings-cog:hover { background: #3a3a3a; transform: rotate(45deg); }
-        .nav-placeholder { width: 40px; } 
+        .nav-placeholder { width: 36px; } 
+
+        /* Relocated Camera Row (Top Sub-bar) */
+        .camera-navbar {
+            width: 100%; background: rgba(26, 26, 26, 0.95);
+            border-bottom: 1px solid #333; padding: 8px 10px;
+            box-sizing: border-box; display: flex; flex-direction: column;
+            align-items: center; gap: 4px; z-index: 45;
+        }
 
         #viewport3d { width: 100vw; flex-grow: 1; position: relative; z-index: 1; background: #1a1a1a; }
         #viewport3d canvas { touch-action: none !important; outline: none; display: block; }
 
+        /* Compact Vertical Stack Menu Control Center */
         #control-center {
-            position: absolute; bottom: 15px; left: 50%; transform: translateX(-50%);
-            background: rgba(20, 20, 20, 0.85); border: 1px solid #444; backdrop-filter: blur(10px);
-            padding: 12px 15px; border-radius: 12px; 
-            display: flex; flex-wrap: wrap; justify-content: center; gap: 12px; align-items: flex-end; 
-            z-index: 10; width: 95%; max-width: 950px; box-shadow: 0 10px 30px rgba(0,0,0,0.7);
+            position: absolute; bottom: 12px; left: 50%; transform: translateX(-50%);
+            background: rgba(20, 20, 20, 0.9); border: 1px solid #444; backdrop-filter: blur(12px);
+            padding: 12px 16px; border-radius: 14px; 
+            display: flex; flex-direction: column; gap: 12px; align-items: center; 
+            z-index: 10; width: 92%; max-width: 500px; box-shadow: 0 10px 30px rgba(0,0,0,0.7);
         }
 
-        .tool-group { display: flex; flex-direction: column; gap: 5px; align-items: center; }
-        .btn-row { display: flex; flex-wrap: wrap; justify-content: center; gap: 5px; align-items: center; }
+        .tool-group { display: flex; flex-direction: column; gap: 4px; align-items: center; width: 100%; }
+        .btn-row { display: flex; flex-wrap: wrap; justify-content: center; gap: 6px; align-items: center; width: 100%; }
         
-        label { font-size: 10px; text-transform: uppercase; color: #aaa; font-weight: bold; letter-spacing: 1px; text-align: center; }
-        button, select { background: #2a2a2a; color: white; border: 1px solid #555; padding: 8px 12px; border-radius: 6px; font-weight: bold; cursor: pointer; font-size: 13px; transition: 0.2s; user-select: none; }
+        label { font-size: 9px; text-transform: uppercase; color: #aaa; font-weight: bold; letter-spacing: 1px; text-align: center; }
+        button, select { background: #2a2a2a; color: white; border: 1px solid #555; padding: 7px 12px; border-radius: 6px; font-weight: bold; cursor: pointer; font-size: 12px; transition: 0.2s; user-select: none; }
         button:hover { background: #3a3a3a; border-color: #777; }
         button.active { background: #e10600; border-color: #ff3b30; }
         
-        .cam-btn { padding: 6px 8px; font-size: 11px; }
-        .size-btn { padding: 6px 10px; font-size: 11px; min-width: 32px; }
-        input[type="range"] { accent-color: #e10600; cursor: pointer; }
+        .cam-btn { padding: 5px 10px; font-size: 11px; }
+        .size-btn { padding: 5px 8px; font-size: 11px; min-width: 30px; }
 
         /* Custom Color Palette Styles */
         .color-picker-wrap {
-            display: flex; flex-direction: column; gap: 3px; 
-            background: #2a2a2a; padding: 5px; border-radius: 8px; border: 1px solid #555;
-            max-width: 100%; overflow-x: auto;
+            display: flex; flex-direction: column; gap: 4px; 
+            background: #252525; padding: 6px; border-radius: 8px; border: 1px solid #444;
+            width: 100%; box-sizing: border-box;
         }
-        .color-row { display: flex; gap: 3px; }
+        .color-row { display: flex; gap: 4px; justify-content: center; }
         .color-swatch {
-            width: 20px; height: 20px; border-radius: 4px; border: 2px solid transparent; 
-            cursor: pointer; flex-shrink: 0; box-sizing: border-box;
+            width: 22px; height: 22px; border-radius: 5px; border: 2px solid transparent; 
+            cursor: pointer; flex-shrink: 0; box-sizing: border-box; transition: 0.15s;
         }
-        .color-swatch.active { border-color: white; transform: scale(1.1); box-shadow: 0 0 5px rgba(255,255,255,0.5); }
+        .color-swatch.active { border-color: white; transform: scale(1.1); box-shadow: 0 0 6px rgba(255,255,255,0.6); }
 
         #helpModal {
             position: fixed; top: 0; left: 0; width: 100vw; height: 100vh;
@@ -73,22 +82,23 @@
         }
         .modal-content {
             background: #1a1a1a; border: 1px solid #444; border-radius: 14px;
-            padding: 25px; width: 90%; max-width: 450px; text-align: center;
+            padding: 25px; width: 90%; max-width: 420px; text-align: center;
             box-shadow: 0 20px 50px rgba(0,0,0,0.8);
         }
         .modal-content h2 { margin-top: 0; color: #e10600; }
-        .modal-content ul { text-align: left; padding-left: 20px; line-height: 1.6; color: #ccc; font-size: 14px;}
+        .modal-content ul { text-align: left; padding-left: 20px; line-height: 1.6; color: #ccc; font-size: 13px;}
         .modal-content button { margin-top: 15px; width: 100%; padding: 12px; font-size: 14px; }
         #installAppBtn { background: #007aff; border-color: #0056b3; display: none; }
 
         @media (max-width: 650px) {
-            .top-navbar { height: 55px; padding: 0 10px; }
-            .app-logo { height: 32px; }
-            .settings-cog { width: 34px; height: 34px; font-size: 15px; }
-            #control-center { padding: 8px; gap: 6px; bottom: 10px; }
-            button, select { padding: 6px 8px; font-size: 11px; }
-            .cam-btn, .size-btn { padding: 5px 6px; font-size: 10px; }
-            .color-swatch { width: 18px; height: 18px; }
+            .top-navbar { height: 50px; padding: 0 10px; }
+            .app-logo { height: 28px; }
+            .settings-cog { width: 32px; height: 32px; font-size: 14px; }
+            .camera-navbar { padding: 6px; }
+            #control-center { padding: 10px; gap: 8px; bottom: 8px; width: 94%; }
+            button, select { padding: 6px 10px; font-size: 11px; }
+            .cam-btn, .size-btn { padding: 4px 6px; font-size: 10px; }
+            .color-swatch { width: 18px; height: 18px; border-radius: 4px; }
         }
     </style>
 </head>
@@ -102,16 +112,28 @@
         <button id="helpBtn" class="settings-cog" title="Settings & Help">⚙️</button>
     </div>
 
+    <div class="camera-navbar">
+        <label>Camera Perspective</label>
+        <div class="btn-row">
+            <button class="cam-btn active" data-cam="free">Free Orbit</button>
+            <button class="cam-btn" id="cam-side" data-cam="side">Side</button>
+            <button class="cam-btn" data-cam="front">Front</button>
+            <button class="cam-btn" data-cam="back">Back</button>
+            <button class="cam-btn" data-cam="top">Top</button>
+            <button class="cam-btn" data-cam="iso">45° Down</button>
+        </div>
+    </div>
+
     <div id="viewport3d"></div>
 
     <div id="helpModal">
         <div class="modal-content">
             <h2>🏎️ How to Play</h2>
             <ul>
-                <li><strong>🎥 Orbit Mode:</strong> Drag across the screen space with one finger or mouse to rotate around your vehicle.</li>
-                <li><strong>🖌️ Brush Mode:</strong> Select an explicit sizing from Circle or Square presets and slide your finger across panels to draw clean, seamless continuous lines.</li>
+                <li><strong>🎥 Orbit Mode:</strong> Drag around screen space with one finger/mouse to rotate smoothly.</li>
+                <li><strong>🖌️ Brush Mode:</strong> Select an explicit sizing from Circle or Square presets and slide your finger across panels to draw clean continuous lines.</li>
                 <li><strong>🪣 Bucket Mode:</strong> Tap over target segments to fill background panels instantly.</li>
-                <li><strong>⭐ Decal Mode:</strong> Drag over the car to position your decal in real-time. Use sliders to resize and rotate, then tap <strong>Stamp Decal</strong> to apply!</li>
+                <li><strong>⭐ Decal Mode:</strong> Drag over the car to position your decal in real-time. Use sliders to resize and rotate, then tap <strong>Stamp</strong> to apply!</li>
                 <li><strong>🪞 Side Mirror:</strong> Set camera directly into <strong>Side</strong> perspective to open mirroring tools to replicate your design perfectly to the opposite side.</li>
             </ul>
             <button id="installAppBtn">📲 Install Web App</button>
@@ -122,18 +144,6 @@
     <div id="control-center">
         
         <div class="tool-group">
-            <label>Camera</label>
-            <div class="btn-row">
-                <button class="cam-btn active" data-cam="free">Free</button>
-                <button class="cam-btn" id="cam-side" data-cam="side">Side</button>
-                <button class="cam-btn" data-cam="front">Front</button>
-                <button class="cam-btn" data-cam="back">Back</button>
-                <button class="cam-btn" data-cam="top">Top</button>
-                <button class="cam-btn" data-cam="iso">45° Down</button>
-            </div>
-        </div>
-
-        <div class="tool-group">
             <label>Studio Mode</label>
             <div class="btn-row">
                 <button id="mode-brush">🖌️ Brush</button>
@@ -142,45 +152,9 @@
             </div>
         </div>
 
-        <div class="tool-group">
-            <label>Color</label>
-            <div class="color-picker-wrap">
-                <div class="color-row">
-                    <div class="color-swatch" style="background:#ffffff;" data-color="#ffffff"></div>
-                    <div class="color-swatch" style="background:#ffb3ba;" data-color="#ffb3ba"></div>
-                    <div class="color-swatch" style="background:#ffdfba;" data-color="#ffdfba"></div>
-                    <div class="color-swatch" style="background:#ffffba;" data-color="#ffffba"></div>
-                    <div class="color-swatch" style="background:#baffc9;" data-color="#baffc9"></div>
-                    <div class="color-swatch" style="background:#bae1ff;" data-color="#bae1ff"></div>
-                    <div class="color-swatch" style="background:#e3baff;" data-color="#e3baff"></div>
-                    <div class="color-swatch" style="background:#e0e0e0;" data-color="#e0e0e0"></div>
-                </div>
-                <div class="color-row">
-                    <div class="color-swatch active" style="background:#e10600;" data-color="#e10600"></div>
-                    <div class="color-swatch" style="background:#ff0000;" data-color="#ff0000"></div>
-                    <div class="color-swatch" style="background:#ff7f00;" data-color="#ff7f00"></div>
-                    <div class="color-swatch" style="background:#ffff00;" data-color="#ffff00"></div>
-                    <div class="color-swatch" style="background:#00ff00;" data-color="#00ff00"></div>
-                    <div class="color-swatch" style="background:#007aff;" data-color="#007aff"></div>
-                    <div class="color-swatch" style="background:#8a2be2;" data-color="#8a2be2"></div>
-                    <div class="color-swatch" style="background:#888888;" data-color="#888888"></div>
-                </div>
-                <div class="color-row">
-                    <div class="color-swatch" style="background:#000000;" data-color="#000000"></div>
-                    <div class="color-swatch" style="background:#8b0000;" data-color="#8b0000"></div>
-                    <div class="color-swatch" style="background:#cc5500;" data-color="#cc5500"></div>
-                    <div class="color-swatch" style="background:#b8b800;" data-color="#b8b800"></div>
-                    <div class="color-swatch" style="background:#006400;" data-color="#006400"></div>
-                    <div class="color-swatch" style="background:#00008b;" data-color="#00008b"></div>
-                    <div class="color-swatch" style="background:#4b0082;" data-color="#4b0082"></div>
-                    <div class="color-swatch" style="background:#404040;" data-color="#404040"></div>
-                </div>
-            </div>
-        </div>
-
         <div class="tool-group" id="brush-presets-wrap" style="display: none;">
             <label>Circle Sizes</label>
-            <div class="btn-row" style="margin-bottom: 4px;">
+            <div class="btn-row" style="margin-bottom: 2px;">
                 <button class="size-btn circle-size active" data-size="3">1</button>
                 <button class="size-btn circle-size" data-size="6">2</button>
                 <button class="size-btn circle-size" data-size="12">3</button>
@@ -220,11 +194,46 @@
         </div>
 
         <div class="tool-group">
-            <label>Actions</label>
+            <label>Color Palette</label>
+            <div class="color-picker-wrap">
+                <div class="color-row">
+                    <div class="color-swatch" style="background:#ffffff;" data-color="#ffffff"></div>
+                    <div class="color-swatch" style="background:#ffb3ba;" data-color="#ffb3ba"></div>
+                    <div class="color-swatch" style="background:#ffdfba;" data-color="#ffdfba"></div>
+                    <div class="color-swatch" style="background:#ffffba;" data-color="#ffffba"></div>
+                    <div class="color-swatch" style="background:#baffc9;" data-color="#baffc9"></div>
+                    <div class="color-swatch" style="background:#bae1ff;" data-color="#bae1ff"></div>
+                    <div class="color-swatch" style="background:#e3baff;" data-color="#e3baff"></div>
+                    <div class="color-swatch" style="background:#e0e0e0;" data-color="#e0e0e0"></div>
+                </div>
+                <div class="color-row">
+                    <div class="color-swatch active" style="background:#e10600;" data-color="#e10600"></div>
+                    <div class="color-swatch" style="background:#ff0000;" data-color="#ff0000"></div>
+                    <div class="color-swatch" style="background:#ff7f00;" data-color="#ff7f00"></div>
+                    <div class="color-swatch" style="background:#ffff00;" data-color="#ffff00"></div>
+                    <div class="color-swatch" style="background:#00ff00;" data-color="#00ff00"></div>
+                    <div class="color-swatch" style="background:#007aff;" data-color="#007aff"></div>
+                    <div class="color-swatch" style="background:#8a2be2;" data-color="#8a2be2"></div>
+                    <div class="color-swatch" style="background:#888888;" data-color="#888888"></div>
+                </div>
+                <div class="color-row">
+                    <div class="color-swatch" style="background:#000000;" data-color="#000000"></div>
+                    <div class="color-swatch" style="background:#8b0000;" data-color="#8b0000"></div>
+                    <div class="color-swatch" style="background:#cc5500;" data-color="#cc5500"></div>
+                    <div class="color-swatch" style="background:#b8b800;" data-color="#b8b800"></div>
+                    <div class="color-swatch" style="background:#006400;" data-color="#006400"></div>
+                    <div class="color-swatch" style="background:#00008b;" data-color="#00008b"></div>
+                    <div class="color-swatch" style="background:#4b0082;" data-color="#4b0082"></div>
+                    <div class="color-swatch" style="background:#404040;" data-color="#404040"></div>
+                </div>
+            </div>
+        </div>
+
+        <div class="tool-group">
             <div class="btn-row">
                 <button id="mirrorBtn" style="background: #222; display: none;">🪞 Mirror</button>
                 <button id="undoBtn" style="background: #333;">↩️ Undo</button>
-                <button id="resetBtn" style="background: #555;">Reset</button>
+                <button id="resetBtn" style="background: #555;">Reset All</button>
             </div>
         </div>
     </div>
