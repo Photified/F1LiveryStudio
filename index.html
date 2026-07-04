@@ -6,12 +6,9 @@
     <title>3D F1 Livery Studio Pro</title>
     <link rel="manifest" href="manifest.json">
     <style>
-        /* touch-action: none stops pull-to-refresh and unwanted mobile scrolling */
         body { 
             margin: 0; background: #121212; color: white; font-family: sans-serif; 
-            height: 100vh; overflow: hidden; 
-            touch-action: none; 
-            overscroll-behavior: none; 
+            height: 100vh; overflow: hidden; touch-action: none; overscroll-behavior: none; 
         }
         
         header {
@@ -24,38 +21,49 @@
         #viewport3d { width: 100vw; height: 100vh; position: absolute; top: 0; left: 0; z-index: 1; }
         #viewport3d canvas { touch-action: none !important; outline: none; }
 
-        /* Mobile Responsive Control Center */
         #control-center {
             position: absolute; bottom: 15px; left: 50%; transform: translateX(-50%);
             background: rgba(20, 20, 20, 0.85); border: 1px solid #444; backdrop-filter: blur(10px);
             padding: 12px 15px; border-radius: 12px; 
             display: flex; flex-wrap: wrap; justify-content: center; gap: 15px; align-items: flex-end; 
-            z-index: 10; width: 95%; max-width: 900px;
-            box-shadow: 0 10px 30px rgba(0,0,0,0.7);
+            z-index: 10; width: 95%; max-width: 950px; box-shadow: 0 10px 30px rgba(0,0,0,0.7);
         }
 
         .tool-group { display: flex; flex-direction: column; gap: 5px; align-items: center; }
         .btn-row { display: flex; flex-wrap: wrap; justify-content: center; gap: 5px; align-items: center; }
         
         label { font-size: 10px; text-transform: uppercase; color: #aaa; font-weight: bold; letter-spacing: 1px; text-align: center; }
-        button, select { background: #2a2a2a; color: white; border: 1px solid #555; padding: 8px 12px; border-radius: 6px; font-weight: bold; cursor: pointer; font-size: 13px; transition: 0.2s; }
+        button, select { background: #2a2a2a; color: white; border: 1px solid #555; padding: 8px 12px; border-radius: 6px; font-weight: bold; cursor: pointer; font-size: 13px; transition: 0.2s; user-select: none; }
         button:hover { background: #3a3a3a; border-color: #777; }
         button.active { background: #e10600; border-color: #ff3b30; }
         button.toggle-on { background: #007aff; border-color: #0056b3; } 
         
         .cam-btn { padding: 6px 8px; font-size: 11px; }
+        .size-btn { padding: 6px 10px; font-size: 11px; min-width: 32px; }
         
         input[type="color"] { border: none; width: 40px; height: 35px; border-radius: 6px; cursor: pointer; background: none; }
-        input[type="range"] { accent-color: #e10600; cursor: pointer; width: 100px; }
 
-        /* Smart shrinking for phones */
+        /* Help Modal Box Custom CSS */
+        #helpModal {
+            position: fixed; top: 0; left: 0; width: 100vw; height: 100vh;
+            background: rgba(0,0,0,0.85); backdrop-filter: blur(8px);
+            display: flex; justify-content: center; align-items: center; z-index: 100;
+        }
+        .modal-content {
+            background: #1a1a1a; border: 1px solid #444; border-radius: 14px;
+            padding: 25px; width: 90%; max-width: 450px; text-align: center;
+            box-shadow: 0 20px 50px rgba(0,0,0,0.8);
+        }
+        .modal-content h2 { margin-top: 0; color: #e10600; }
+        .modal-content ul { text-align: left; padding-left: 20px; line-height: 1.6; color: #ccc; }
+        .modal-content button { margin-top: 15px; width: 100%; padding: 12px; font-size: 14px; }
+        #installAppBtn { background: #007aff; border-color: #0056b3; display: none; }
+
         @media (max-width: 650px) {
-            .app-logo { height: 60px; }
-            #control-center { padding: 10px; gap: 8px; bottom: 10px; }
-            button, select { padding: 6px 10px; font-size: 11px; }
-            .cam-btn { padding: 5px 8px; font-size: 10px; }
-            input[type="range"] { width: 70px; }
-            label { font-size: 9px; }
+            .app-logo { height: 50px; }
+            #control-center { padding: 8px; gap: 6px; bottom: 10px; }
+            button, select { padding: 6px 8px; font-size: 11px; }
+            .cam-btn, .size-btn { padding: 5px 6px; font-size: 10px; }
         }
     </style>
 </head>
@@ -67,13 +75,28 @@
 
     <div id="viewport3d"></div>
 
+    <div id="helpModal">
+        <div class="modal-content">
+            <h2>🏎️ How to Play</h2>
+            <ul>
+                <li><strong>🎥 Orbit / Free Mode:</strong> Drag around screen space with one finger/mouse button to rotate seamlessly around your racing chassis.</li>
+                <li><strong>🖌️ Brush Mode:</strong> Select an explicit layout sizing from either Circle or Square presets and draw across panels.</li>
+                <li><strong>🪣 Bucket Mode:</strong> Tap over target segments to fill background components instantly.</li>
+                <li><strong>⭐ Decal Mode:</strong> Pick target glyphs from the selections, adjust properties, and tap onto the frame to stamp.</li>
+                <li><strong>🪞 Side Mirror:</strong> Set camera directly into <strong>Side</strong> perspective to open mirroring tools to replicate patterns sideways.</li>
+            </ul>
+            <button id="installAppBtn">📲 Install Web App</button>
+            <button id="closeHelpBtn" class="active">Start Designing! 🏁</button>
+        </div>
+    </div>
+
     <div id="control-center">
         
         <div class="tool-group">
             <label>Camera</label>
             <div class="btn-row">
-                <button class="cam-btn" data-cam="free">Free</button>
-                <button class="cam-btn" data-cam="side">Side</button>
+                <button class="cam-btn active" data-cam="free">Free</button>
+                <button class="cam-btn" id="cam-side" data-cam="side">Side</button>
                 <button class="cam-btn" data-cam="front">Front</button>
                 <button class="cam-btn" data-cam="back">Back</button>
                 <button class="cam-btn" data-cam="top">Top</button>
@@ -84,7 +107,6 @@
         <div class="tool-group">
             <label>Studio Mode</label>
             <div class="btn-row">
-                <button id="mode-camera" class="active">🎥 Orbit</button>
                 <button id="mode-brush">🖌️ Brush</button>
                 <button id="mode-bucket">🪣 Bucket</button>
                 <button id="mode-decal">⭐ Decal</button>
@@ -96,9 +118,23 @@
             <input type="color" id="paintColor" value="#e10600">
         </div>
 
-        <div class="tool-group">
-            <label>Size / Scale</label>
-            <input type="range" id="toolSize" min="5" max="3000" value="20">
+        <div class="tool-group" id="brush-presets-wrap" style="display: none;">
+            <label>Circle Sizes</label>
+            <div class="btn-row" style="margin-bottom: 4px;">
+                <button class="size-btn circle-size active" data-size="10">1</button>
+                <button class="size-btn circle-size" data-size="25">2</button>
+                <button class="size-btn circle-size" data-size="50">3</button>
+                <button class="size-btn circle-size" data-size="100">4</button>
+                <button class="size-btn circle-size" data-size="200">5</button>
+            </div>
+            <label>Square Sizes</label>
+            <div class="btn-row">
+                <button class="size-btn square-size" data-size="10">1</button>
+                <button class="size-btn square-size" data-size="25">2</button>
+                <button class="size-btn square-size" data-size="50">3</button>
+                <button class="size-btn square-size" data-size="100">4</button>
+                <button class="size-btn square-size" data-size="200">5</button>
+            </div>
         </div>
 
         <div class="tool-group" id="decal-select-wrap" style="display: none;">
@@ -106,13 +142,16 @@
             <div class="btn-row">
                 <select id="decalType">
                     <option value="star">⭐ Star</option>
-                    <option value="stripe">⚡ Stripe</option>
+                    <option value="stripe">⚡ Lightning Stripe</option>
                     <option value="circle">⭕ Roundel</option>
                     <option value="checkered">🏁 Checkered</option>
                     <option value="number1">1️⃣ Number 1</option>
                     <option value="triangle">🔺 Triangle</option>
                     <option value="hexagon">⬢ Hexagon</option>
-                    <option value="swoosh">🌙 Swoosh</option>
+                    <option value="chevron">⏩ Chevron</option>
+                    <option value="diamond">♦️ Diamond</option>
+                    <option value="swoosh">🌙 Racing Swoosh</option>
+                    <option value="cross">➕ Cross</option>
                 </select>
                 <input type="range" id="decalRot" min="0" max="360" value="0" title="Rotation">
             </div>
@@ -121,9 +160,10 @@
         <div class="tool-group">
             <label>Actions</label>
             <div class="btn-row">
-                <button id="mirrorBtn" style="background: #222;">🪞 Mirror: OFF</button>
+                <button id="helpBtn" style="background: #444;">❓ Help</button>
+                <button id="mirrorBtn" style="background: #222; display: none;">🪞 Mirror Side</button>
                 <button id="undoBtn" style="background: #333;">↩️ Undo</button>
-                <button id="resetBtn" style="background: #444;">Reset</button>
+                <button id="resetBtn" style="background: #555;">Reset All</button>
             </div>
         </div>
     </div>
