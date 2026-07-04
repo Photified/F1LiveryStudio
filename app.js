@@ -1,48 +1,67 @@
 // --- 1. Scene, Camera, & Renderer ---
 const container = document.getElementById('viewport3d');
 const scene = new THREE.Scene();
-scene.background = new THREE.Color('#121212'); 
+scene.background = new THREE.Color('#1a1a1a'); // Paint booth gray
 
 const camera = new THREE.PerspectiveCamera(45, window.innerWidth / window.innerHeight, 0.1, 100);
 const renderer = new THREE.WebGLRenderer({ antialias: true, alpha: true });
 renderer.setSize(window.innerWidth, window.innerHeight);
 renderer.setPixelRatio(Math.min(window.devicePixelRatio, 2));
 renderer.shadowMap.enabled = true;
+renderer.shadowMap.type = THREE.PCFSoftShadowMap; // Softer shadows
 renderer.outputEncoding = THREE.sRGBEncoding; 
 renderer.toneMapping = THREE.ACESFilmicToneMapping;
 renderer.toneMappingExposure = 1.0;
 
 container.appendChild(renderer.domElement);
 
-// Load HDRI Environment
+// Load Studio Paint Booth Environment
 const pmremGenerator = new THREE.PMREMGenerator(renderer);
-pmremGenerator.compileEquirectangularShader();
-
-new THREE.RGBELoader()
-    .setDataType(THREE.UnsignedByteType)
-    .load('https://raw.githubusercontent.com/mrdoob/three.js/master/examples/textures/equirectangular/venice_sunset_1k.hdr', (texture) => {
-        const envMap = pmremGenerator.fromEquirectangular(texture).texture;
-        scene.environment = envMap; 
-        texture.dispose();
-        pmremGenerator.dispose();
-    });
+scene.environment = pmremGenerator.fromScene(new THREE.RoomEnvironment(), 0.04).texture;
 
 // Fallback Lights
-scene.add(new THREE.AmbientLight(0xffffff, 0.4));
-const topLight = new THREE.DirectionalLight(0xffffff, 0.6);
-topLight.position.set(0, 10, 0);
+scene.add(new THREE.AmbientLight(0xffffff, 0.3));
+
+// Top spotlight that casts shadows onto the floor
+const topLight = new THREE.DirectionalLight(0xffffff, 0.8);
+topLight.position.set(0, 15, 0);
+topLight.castShadow = true;
+topLight.shadow.mapSize.width = 2048;
+topLight.shadow.mapSize.height = 2048;
+topLight.shadow.camera.near = 0.5;
+topLight.shadow.camera.far = 25;
+topLight.shadow.camera.left = -10;
+topLight.shadow.camera.right = 10;
+topLight.shadow.camera.top = 10;
+topLight.shadow.camera.bottom = -10;
+topLight.shadow.bias = -0.0001;
 scene.add(topLight);
+
+// Setup the Floor Pedestal (Will adjust height when car loads)
+const floorGeo = new THREE.CylinderGeometry(14, 14, 0.5, 64);
+const floorMat = new THREE.MeshStandardMaterial({ 
+    color: 0x111111, 
+    roughness: 0.15, 
+    metalness: 0.6 
+});
+const studioFloor = new THREE.Mesh(floorGeo, floorMat);
+studioFloor.receiveShadow = true;
+studioFloor.visible = false; // Hide until car is positioned
+scene.add(studioFloor);
+
 
 const controls = new THREE.OrbitControls(camera, renderer.domElement);
 controls.enableDamping = true;
 controls.dampingFactor = 0.05;
+// Prevent users from going completely under the floor
+controls.maxPolarAngle = Math.PI / 2 + 0.05; 
 
 let activeCamView = 'iso'; 
 
 function getCamDist() { return window.innerWidth < 650 ? 25 : 10; }
 
 function getCamOffsetY(view) { 
-    if (window.innerWidth < 650) return -5.5; // Keep mobile car pushed up above tall UI
+    if (window.innerWidth < 650) return -5.5; 
     
     switch(view) {
         case 'side': return -1.5;  
@@ -291,7 +310,6 @@ document.querySelectorAll('.cam-btn').forEach(btn => {
         
         updateCameraTo(view);
         
-        // DEVICE DETECTION FOR TOAST PROMPT
         const isMobile = ('ontouchstart' in window) || (navigator.maxTouchPoints > 0);
         const promptMessage = isMobile 
             ? 'Pinch and drag to free-cam!' 
@@ -847,6 +865,11 @@ loader.load(
         const finalBox = new THREE.Box3().setFromObject(carModel);
         const center = finalBox.getCenter(new THREE.Vector3());
         carModel.position.sub(center);
+
+        // Position the floor perfectly beneath the tires once the scale and center are calculated!
+        const updatedBox = new THREE.Box3().setFromObject(carModel);
+        studioFloor.position.y = updatedBox.min.y - 0.25; 
+        studioFloor.visible = true;
 
         const targetMeshes = [];
         carModel.traverse((node) => {
