@@ -291,8 +291,13 @@ document.querySelectorAll('.cam-btn').forEach(btn => {
         
         updateCameraTo(view);
         
-        // ADDED TOAST NOTIFICATION HERE
-        showToast('Pinch to zoom on phone or scroll on desktop to free cam!', 4000);
+        // DEVICE DETECTION FOR TOAST PROMPT
+        const isMobile = ('ontouchstart' in window) || (navigator.maxTouchPoints > 0);
+        const promptMessage = isMobile 
+            ? 'Pinch and drag to free-cam!' 
+            : 'Scroll and drag to free-cam!';
+            
+        showToast(promptMessage, 4000);
     });
 });
 
