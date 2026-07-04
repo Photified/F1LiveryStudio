@@ -617,7 +617,7 @@ function drawShape(ctx, x, y, size, type, color) {
         ctx.fillStyle = solidColor;
         const spacing = size * 0.25;
         for (let x = -size; x <= size; x += spacing) {
-            for (let y = -size; y y <= size; y += spacing) {
+            for (let y = -size; y <= size; y += spacing) {
                 const dist = Math.sqrt(x*x + y*y);
                 if (dist < size) {
                     const radius = (1 - (dist / size)) * (spacing * 0.4);
