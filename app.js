@@ -112,6 +112,7 @@ const ui = {
     decalWrap: document.getElementById('decal-select-wrap'),
     decalRot: document.getElementById('decalRot'),
     decalSize: document.getElementById('toolSize'),
+    commitDecalBtn: document.getElementById('commitDecalBtn'),
     undoBtn: document.getElementById('undoBtn'),
     resetBtn: document.getElementById('resetBtn'),
     helpBtn: document.getElementById('helpBtn'),
@@ -205,11 +206,11 @@ ui.nativeColorPicker.addEventListener('input', (e) => {
 ui.nativeColorPicker.addEventListener('change', () => {
     if (!recentColors.includes(currentColor)) {
         recentColors.unshift(currentColor);
-        if (recentColors.length > 5) recentColors.pop(); // Max 5 recent colors
+        if (recentColors.length > 5) recentColors.pop(); 
         renderRecentColors();
     }
 });
-renderRecentColors(); // Initial Setup
+renderRecentColors(); 
 
 document.querySelectorAll('.size-btn').forEach(btn => {
     btn.addEventListener('click', (e) => {
@@ -490,6 +491,8 @@ function refreshLivePreview() {
     if (!liveDecalHitData) return;
     const rotVal = parseInt(ui.decalRot.value);
     const sizeVal = parseInt(ui.decalSize.value) / 100;
+    
+    // Fix: Now correctly uses the activeDecalType variable instead of the missing element
     projectStamp(liveDecalHitData.point, liveDecalHitData.normal, rotVal, sizeVal, activeDecalType, currentColor, globalRenderOrder + 50, true);
 }
 
@@ -497,7 +500,7 @@ function refreshLivePreview() {
 let touchStartPos = new THREE.Vector2();
 let lastScreenPos = new THREE.Vector2();
 let gestureMoved = false;
-let lastTapTime = 0; // Tracks timing for double tap
+let lastTapTime = 0; 
 
 domCanvas.addEventListener('pointerdown', (e) => {
     if (!e.isPrimary || e.target.closest('#control-center') || e.target.closest('.top-navbar') || e.target.closest('.camera-navbar')) return;
@@ -559,16 +562,15 @@ domCanvas.addEventListener('pointerup', (e) => {
     
     if (currentMode === 'decal') controls.enabled = true; 
 
-    // Double-Tap Logic
     const currentTime = Date.now();
     const isDoubleTap = (currentTime - lastTapTime) < 300;
     lastTapTime = currentTime;
 
     if (isDoubleTap && currentMode === 'decal' && liveDecalHitData && !gestureMoved) {
-        // Apply the Decal Stamp
         const rotVal = parseInt(ui.decalRot.value);
         const sizeVal = parseInt(ui.decalSize.value) / 100;
 
+        // Fix: Use activeDecalType for the stamp commit too
         const meshes = projectStamp(liveDecalHitData.point, liveDecalHitData.normal, rotVal, sizeVal, activeDecalType, currentColor, globalRenderOrder, false);
         stampHistory.push({ point: liveDecalHitData.point.clone(), normal: liveDecalHitData.normal.clone(), rot: rotVal, size: sizeVal, shape: activeDecalType, color: currentColor, zIndex: globalRenderOrder });
         
@@ -581,6 +583,22 @@ domCanvas.addEventListener('pointerup', (e) => {
             actionHistory.push({ type: 'bucket', mesh: hit.object, oldColor: hit.object.material.color.getHex() });
             hit.object.material.color.set(currentColor);
         }
+    }
+});
+
+ui.commitDecalBtn.addEventListener('click', () => {
+    if (currentMode === 'decal' && liveDecalHitData) {
+        const rotVal = parseInt(ui.decalRot.value);
+        const sizeVal = parseInt(ui.decalSize.value) / 100;
+        
+        const meshes = projectStamp(liveDecalHitData.point, liveDecalHitData.normal, rotVal, sizeVal, activeDecalType, currentColor, globalRenderOrder, false);
+        stampHistory.push({ point: liveDecalHitData.point.clone(), normal: liveDecalHitData.normal.clone(), rot: rotVal, size: sizeVal, shape: activeDecalType, color: currentColor, zIndex: globalRenderOrder });
+        
+        actionHistory.push({ type: 'decal', meshes: meshes });
+        globalRenderOrder++; 
+        
+        clearGhosts();
+        liveDecalHitData = null; 
     }
 });
 
