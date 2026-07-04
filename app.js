@@ -234,6 +234,11 @@ function drawShape(ctx, x, y, size, type, color) {
         ctx.fillStyle = solidColor;
         ctx.fillRect(-size/2, -size*2, size, size*4);
     } 
+    else if (type === 'racing-stripes') {
+        ctx.fillStyle = solidColor;
+        ctx.fillRect(-size/2, -size*2, size*0.35, size*4);
+        ctx.fillRect(size*0.15, -size*2, size*0.35, size*4);
+    }
     else if (type === 'fade-stripe') {
         const grad = ctx.createLinearGradient(0, -size*2, 0, size*2);
         grad.addColorStop(0, solidColor);
@@ -272,7 +277,39 @@ function drawShape(ctx, x, y, size, type, color) {
         ctx.quadraticCurveTo(size/2, -size/4, -size, size/2); 
         ctx.closePath(); 
         ctx.fill();
+    }
+    else if (type === 'swoosh-fade') {
+        const grad = ctx.createLinearGradient(-size, 0, size, 0);
+        grad.addColorStop(0, clearColor);
+        grad.addColorStop(1, solidColor);
+        ctx.fillStyle = grad;
+        ctx.beginPath(); 
+        ctx.moveTo(-size, size/2); 
+        ctx.quadraticCurveTo(0, -size, size, -size/2); 
+        ctx.quadraticCurveTo(size/2, -size/4, -size, size/2); 
+        ctx.closePath(); 
+        ctx.fill();
     } 
+    else if (type === 'slash-angles') {
+        ctx.fillStyle = solidColor;
+        // Draw three staggered slashes
+        for (let i = 0; i < 3; i++) {
+            let offset = i * (size * 0.4);
+            ctx.beginPath();
+            ctx.moveTo(-size/2 + offset, -size + offset);
+            ctx.lineTo(-size/4 + offset, -size + offset);
+            ctx.lineTo(-size/1.5 + offset, size + offset);
+            ctx.lineTo(-size + offset + size/12, size + offset);
+            ctx.closePath();
+            ctx.fill();
+        }
+    }
+    else if (type === 'speed-lines') {
+        ctx.fillStyle = solidColor;
+        ctx.fillRect(-size, -size/2, size*2, size/8);
+        ctx.fillRect(-size*0.8, -size/4, size*1.8, size/12);
+        ctx.fillRect(-size*0.6, 0, size*1.6, size/16);
+    }
     else if (type === 'wedge') {
         ctx.fillStyle = solidColor;
         ctx.beginPath();
@@ -281,6 +318,26 @@ function drawShape(ctx, x, y, size, type, color) {
         ctx.lineTo(-size, size);
         ctx.closePath();
         ctx.fill();
+    }
+    else if (type === 'triangle-fade') {
+        const grad = ctx.createLinearGradient(0, -size, 0, size);
+        grad.addColorStop(0, solidColor);
+        grad.addColorStop(1, clearColor);
+        ctx.fillStyle = grad;
+        ctx.beginPath();
+        ctx.moveTo(0, -size);
+        ctx.lineTo(size, size);
+        ctx.lineTo(-size, size);
+        ctx.closePath();
+        ctx.fill();
+    }
+    else if (type === 'flare') {
+        const grad = ctx.createLinearGradient(-size, 0, size, 0);
+        grad.addColorStop(0, clearColor);
+        grad.addColorStop(0.5, solidColor);
+        grad.addColorStop(1, clearColor);
+        ctx.fillStyle = grad;
+        ctx.fillRect(-size, -size/4, size*2, size/2);
     }
     else if (type === 'gradient-block') {
         const grad = ctx.createRadialGradient(0, 0, 0, 0, 0, size);
@@ -363,7 +420,6 @@ function projectStamp(point, normal, rotation, size, shape, color, zIndex, isPre
     dummy.lookAt(point.clone().add(normal));
     dummy.rotateZ(rotation * Math.PI / 180);
 
-    // FIXED: Depth dynamically scales with the decal size, ensuring massive fades wrap the whole car
     const depth = Math.max(5.0, size);
     const scale = new THREE.Vector3(size, size, depth); 
     const mat = getDecalMaterial(shape, color);
