@@ -1,7 +1,7 @@
 // --- 1. Scene, Camera, & Renderer ---
 const container = document.getElementById('viewport3d');
 const scene = new THREE.Scene();
-scene.background = new THREE.Color('#222222'); // Fallback studio grey
+scene.background = new THREE.Color('#0a0a0a'); // Pitch black studio void
 
 const camera = new THREE.PerspectiveCamera(45, window.innerWidth / window.innerHeight, 0.1, 100);
 const renderer = new THREE.WebGLRenderer({ antialias: true, alpha: true });
@@ -11,7 +11,7 @@ renderer.shadowMap.enabled = true;
 renderer.shadowMap.type = THREE.PCFSoftShadowMap; 
 renderer.outputEncoding = THREE.sRGBEncoding; 
 renderer.toneMapping = THREE.ACESFilmicToneMapping;
-renderer.toneMappingExposure = 0.9; // Adjusted for perfect paint booth exposure
+renderer.toneMappingExposure = 1.0; 
 
 container.appendChild(renderer.domElement);
 
@@ -19,45 +19,45 @@ container.appendChild(renderer.domElement);
 const pmremGenerator = new THREE.PMREMGenerator(renderer);
 scene.environment = pmremGenerator.fromScene(new THREE.RoomEnvironment(), 0.04).texture;
 
-// Fallback Lights
-scene.add(new THREE.AmbientLight(0xffffff, 0.5));
+// Moody Ambient Light
+scene.add(new THREE.AmbientLight(0xffffff, 0.2));
 
-// Top spotlight inside the booth
-const topLight = new THREE.DirectionalLight(0xffffff, 0.6);
-topLight.position.set(0, 18, 0);
+// NEW: Dramatic Focused Spotlight
+const topLight = new THREE.SpotLight(0xffffff, 4.0);
+topLight.position.set(0, 15, 0);
+topLight.angle = Math.PI / 4; // 45 degree cone
+topLight.penumbra = 0.5; // Soft edges on the beam
+topLight.decay = 1.5;
+topLight.distance = 50;
 topLight.castShadow = true;
 topLight.shadow.mapSize.width = 2048;
 topLight.shadow.mapSize.height = 2048;
 topLight.shadow.camera.near = 0.5;
-topLight.shadow.camera.far = 40;
-topLight.shadow.camera.left = -25;
-topLight.shadow.camera.right = 25;
-topLight.shadow.camera.top = 25;
-topLight.shadow.camera.bottom = -25;
-topLight.shadow.bias = -0.0002;
+topLight.shadow.camera.far = 30;
+topLight.shadow.bias = -0.0001;
 scene.add(topLight);
 
-// --- PROCEDURAL PAINT BOOTH TEXTURES ---
+// --- PROCEDURAL MOODY BOOTH TEXTURES ---
 
 function generateCementTexture() {
     const canvas = document.createElement('canvas');
     canvas.width = 1024; canvas.height = 1024;
     const ctx = canvas.getContext('2d');
     
-    // Base cement grey
-    ctx.fillStyle = '#b0b0b0';
+    // Base dark grey cement
+    ctx.fillStyle = '#222222';
     ctx.fillRect(0, 0, 1024, 1024);
     
-    // Generate noise particles for realistic concrete grain
+    // Noise particles for concrete grain
     for (let i = 0; i < 80000; i++) {
-        ctx.fillStyle = Math.random() > 0.5 ? 'rgba(255,255,255,0.04)' : 'rgba(0,0,0,0.05)';
+        ctx.fillStyle = Math.random() > 0.5 ? 'rgba(255,255,255,0.02)' : 'rgba(0,0,0,0.06)';
         ctx.fillRect(Math.random() * 1024, Math.random() * 1024, Math.random() * 2, Math.random() * 2);
     }
     
-    // Ambient Occlusion / Vignette (Darkens the outer edges of the floor)
-    const rGrad = ctx.createRadialGradient(512, 512, 250, 512, 512, 700);
+    // Heavy Spotlight Vignette (Fades to pitch black at edges)
+    const rGrad = ctx.createRadialGradient(512, 512, 200, 512, 512, 600);
     rGrad.addColorStop(0, 'rgba(0,0,0,0)');
-    rGrad.addColorStop(1, 'rgba(0,0,0,0.4)');
+    rGrad.addColorStop(1, 'rgba(0,0,0,0.9)');
     ctx.fillStyle = rGrad;
     ctx.fillRect(0, 0, 1024, 1024);
     
@@ -69,25 +69,25 @@ function generateWallTexture() {
     canvas.width = 512; canvas.height = 512;
     const ctx = canvas.getContext('2d');
     
-    // Base white booth wall
-    ctx.fillStyle = '#ffffff'; 
+    // Base dark wall
+    ctx.fillStyle = '#151515'; 
     ctx.fillRect(0, 0, 512, 512);
     
-    // Vertical shadow gradient (Where wall meets ceiling & floor)
+    // Vertical shadow gradient (Pitch black at floor and ceiling)
     const vGrad = ctx.createLinearGradient(0, 0, 0, 512);
-    vGrad.addColorStop(0, 'rgba(0,0,0,0.4)'); 
-    vGrad.addColorStop(0.15, 'rgba(0,0,0,0)');
-    vGrad.addColorStop(0.85, 'rgba(0,0,0,0)');
-    vGrad.addColorStop(1, 'rgba(0,0,0,0.4)'); 
+    vGrad.addColorStop(0, 'rgba(0,0,0,1.0)'); 
+    vGrad.addColorStop(0.2, 'rgba(0,0,0,0)');
+    vGrad.addColorStop(0.8, 'rgba(0,0,0,0)');
+    vGrad.addColorStop(1, 'rgba(0,0,0,1.0)'); 
     ctx.fillStyle = vGrad;
     ctx.fillRect(0, 0, 512, 512);
     
-    // Horizontal shadow gradient (Where wall meets other walls)
+    // Horizontal shadow gradient (Pitch black in corners)
     const hGrad = ctx.createLinearGradient(0, 0, 512, 0);
-    hGrad.addColorStop(0, 'rgba(0,0,0,0.4)'); 
-    hGrad.addColorStop(0.15, 'rgba(0,0,0,0)');
-    hGrad.addColorStop(0.85, 'rgba(0,0,0,0)');
-    hGrad.addColorStop(1, 'rgba(0,0,0,0.4)'); 
+    hGrad.addColorStop(0, 'rgba(0,0,0,1.0)'); 
+    hGrad.addColorStop(0.2, 'rgba(0,0,0,0)');
+    hGrad.addColorStop(0.8, 'rgba(0,0,0,0)');
+    hGrad.addColorStop(1, 'rgba(0,0,0,1.0)'); 
     ctx.fillStyle = hGrad;
     ctx.fillRect(0, 0, 512, 512);
     
@@ -97,9 +97,9 @@ function generateWallTexture() {
 // Setup the Square Cement Floor Pedestal
 const floorGeo = new THREE.BoxGeometry(80, 0.5, 80); 
 const floorMat = new THREE.MeshStandardMaterial({ 
-    color: 0xeeeeee, 
+    color: 0x666666, 
     map: generateCementTexture(),
-    roughness: 0.9, 
+    roughness: 0.8, 
     metalness: 0.1 
 });
 const studioFloor = new THREE.Mesh(floorGeo, floorMat);
@@ -110,7 +110,7 @@ scene.add(studioFloor);
 // Setup the Room/Paint Booth
 const boothGeo = new THREE.BoxGeometry(80, 40, 80); 
 const boothMat = new THREE.MeshStandardMaterial({
-    color: 0xeeeeee, 
+    color: 0x111111, 
     map: generateWallTexture(),
     side: THREE.DoubleSide, 
     roughness: 1.0,
@@ -125,8 +125,6 @@ const controls = new THREE.OrbitControls(camera, renderer.domElement);
 controls.enableDamping = true;
 controls.dampingFactor = 0.05;
 controls.maxDistance = 35; // Keeps user inside the room
-// FIXED: Static, rock-solid angle lock prevents camera from going under the floor
-controls.maxPolarAngle = Math.PI / 2 - 0.05; 
 
 let activeCamView = 'iso'; 
 
@@ -943,7 +941,7 @@ loader.load(
         studioFloor.visible = true;
         
         // Position walls so they sit safely around the floor
-        paintBooth.position.y = studioFloor.position.y + 19; 
+        paintBooth.position.y = studioFloor.position.y + 19.5; 
         paintBooth.visible = true;
 
         const targetMeshes = [];
@@ -1028,6 +1026,21 @@ window.addEventListener('resize', () => {
 
 function animate() { 
     requestAnimationFrame(animate); 
+    
+    // --- SAFE CAMERA FLOOR LOCK ---
+    if (studioFloor.visible) {
+        // Prevent camera from dipping below the cement pad
+        const floorLimit = studioFloor.position.y + 0.1; 
+        const dist = Math.max(0.1, controls.getDistance());
+        const yDiff = floorLimit - controls.target.y;
+        
+        // Strict Math.clamp to prevent NaN void crashes!
+        let ratio = yDiff / dist;
+        ratio = Math.max(-1, Math.min(1, ratio)); 
+        
+        controls.maxPolarAngle = Math.acos(ratio);
+    }
+
     if (controls.enabled) controls.update(); 
     
     if (textureNeedsGPUUpdate) {
