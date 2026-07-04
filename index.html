@@ -36,7 +36,6 @@
         button, select { background: #2a2a2a; color: white; border: 1px solid #555; padding: 8px 12px; border-radius: 6px; font-weight: bold; cursor: pointer; font-size: 13px; transition: 0.2s; user-select: none; }
         button:hover { background: #3a3a3a; border-color: #777; }
         button.active { background: #e10600; border-color: #ff3b30; }
-        button.toggle-on { background: #007aff; border-color: #0056b3; } 
         
         .cam-btn { padding: 6px 8px; font-size: 11px; }
         .size-btn { padding: 6px 10px; font-size: 11px; min-width: 32px; }
@@ -55,7 +54,7 @@
             box-shadow: 0 20px 50px rgba(0,0,0,0.8);
         }
         .modal-content h2 { margin-top: 0; color: #e10600; }
-        .modal-content ul { text-align: left; padding-left: 20px; line-height: 1.6; color: #ccc; }
+        .modal-content ul { text-align: left; padding-left: 20px; line-height: 1.6; color: #ccc; font-size: 14px;}
         .modal-content button { margin-top: 15px; width: 100%; padding: 12px; font-size: 14px; }
         #installAppBtn { background: #007aff; border-color: #0056b3; display: none; }
 
@@ -79,11 +78,11 @@
         <div class="modal-content">
             <h2>🏎️ How to Play</h2>
             <ul>
-                <li><strong>🎥 Orbit / Free Mode:</strong> Drag around screen space with one finger/mouse button to rotate seamlessly around your racing chassis.</li>
-                <li><strong>🖌️ Brush Mode:</strong> Select an explicit layout sizing from either Circle or Square presets and draw across panels.</li>
-                <li><strong>🪣 Bucket Mode:</strong> Tap over target segments to fill background components instantly.</li>
-                <li><strong>⭐ Decal Mode:</strong> Pick target glyphs from the selections, adjust properties, and tap onto the frame to stamp.</li>
-                <li><strong>🪞 Side Mirror:</strong> Set camera directly into <strong>Side</strong> perspective to open mirroring tools to replicate patterns sideways.</li>
+                <li><strong>🎥 Orbit Mode:</strong> Drag around screen space with one finger/mouse to rotate seamlessly around your racing chassis.</li>
+                <li><strong>🖌️ Brush Mode:</strong> Select an explicit sizing from Circle or Square presets and draw across panels.</li>
+                <li><strong>🪣 Bucket Mode:</strong> Tap over target segments to fill background panels instantly.</li>
+                <li><strong>⭐ Decal Mode:</strong> Pick target graphics from the selections, adjust properties, and tap onto the frame to stamp.</li>
+                <li><strong>🪞 Side Mirror:</strong> Set camera directly into <strong>Side</strong> perspective to open mirroring tools to replicate your design perfectly to the opposite side.</li>
             </ul>
             <button id="installAppBtn">📲 Install Web App</button>
             <button id="closeHelpBtn" class="active">Start Designing! 🏁</button>
@@ -121,19 +120,19 @@
         <div class="tool-group" id="brush-presets-wrap" style="display: none;">
             <label>Circle Sizes</label>
             <div class="btn-row" style="margin-bottom: 4px;">
-                <button class="size-btn circle-size active" data-size="10">1</button>
-                <button class="size-btn circle-size" data-size="25">2</button>
-                <button class="size-btn circle-size" data-size="50">3</button>
-                <button class="size-btn circle-size" data-size="100">4</button>
-                <button class="size-btn circle-size" data-size="200">5</button>
+                <button class="size-btn circle-size active" data-size="3">1</button>
+                <button class="size-btn circle-size" data-size="6">2</button>
+                <button class="size-btn circle-size" data-size="12">3</button>
+                <button class="size-btn circle-size" data-size="25">4</button>
+                <button class="size-btn circle-size" data-size="50">5</button>
             </div>
             <label>Square Sizes</label>
             <div class="btn-row">
-                <button class="size-btn square-size" data-size="10">1</button>
-                <button class="size-btn square-size" data-size="25">2</button>
-                <button class="size-btn square-size" data-size="50">3</button>
-                <button class="size-btn square-size" data-size="100">4</button>
-                <button class="size-btn square-size" data-size="200">5</button>
+                <button class="size-btn square-size" data-size="3">1</button>
+                <button class="size-btn square-size" data-size="6">2</button>
+                <button class="size-btn square-size" data-size="12">3</button>
+                <button class="size-btn square-size" data-size="25">4</button>
+                <button class="size-btn square-size" data-size="50">5</button>
             </div>
         </div>
 
@@ -153,7 +152,8 @@
                     <option value="swoosh">🌙 Racing Swoosh</option>
                     <option value="cross">➕ Cross</option>
                 </select>
-                <input type="range" id="decalRot" min="0" max="360" value="0" title="Rotation">
+                <input type="range" id="toolSize" min="10" max="500" value="100" style="width: 60px;" title="Size">
+                <input type="range" id="decalRot" min="0" max="360" value="0" style="width: 60px;" title="Rotation">
             </div>
         </div>
 
