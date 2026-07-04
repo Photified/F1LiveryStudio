@@ -1,27 +1,38 @@
 // --- 1. Scene, Camera, & Renderer ---
 const container = document.getElementById('viewport3d');
 const scene = new THREE.Scene();
-scene.background = new THREE.Color('#1a1a1a');
+scene.background = new THREE.Color('#121212'); // Darker backdrop to make HDRI pop
 
 const camera = new THREE.PerspectiveCamera(45, window.innerWidth / window.innerHeight, 0.1, 100);
 const renderer = new THREE.WebGLRenderer({ antialias: true, alpha: true });
 renderer.setSize(window.innerWidth, window.innerHeight);
 renderer.setPixelRatio(Math.min(window.devicePixelRatio, 2));
 renderer.shadowMap.enabled = true;
+// Set rendering properties for HDRI processing
 renderer.outputEncoding = THREE.sRGBEncoding; 
+renderer.toneMapping = THREE.ACESFilmicToneMapping;
+renderer.toneMappingExposure = 1.0;
 
 container.appendChild(renderer.domElement);
 
-scene.add(new THREE.AmbientLight(0xffffff, 0.7));
-const topLight = new THREE.DirectionalLight(0xffffff, 0.8);
+// Load HDRI Environment
+const pmremGenerator = new THREE.PMREMGenerator(renderer);
+pmremGenerator.compileEquirectangularShader();
+
+new THREE.RGBELoader()
+    .setDataType(THREE.UnsignedByteType)
+    .load('https://raw.githubusercontent.com/mrdoob/three.js/master/examples/textures/equirectangular/venice_sunset_1k.hdr', (texture) => {
+        const envMap = pmremGenerator.fromEquirectangular(texture).texture;
+        scene.environment = envMap; // Apply realistic reflections to the car
+        texture.dispose();
+        pmremGenerator.dispose();
+    });
+
+// Fallback Lights
+scene.add(new THREE.AmbientLight(0xffffff, 0.4));
+const topLight = new THREE.DirectionalLight(0xffffff, 0.6);
 topLight.position.set(0, 10, 0);
 scene.add(topLight);
-const sideLight1 = new THREE.PointLight(0xffffff, 0.5, 50);
-sideLight1.position.set(5, 3, 5);
-scene.add(sideLight1);
-const sideLight2 = new THREE.PointLight(0xffffff, 0.5, 50);
-sideLight2.position.set(-5, 3, -5);
-scene.add(sideLight2);
 
 const controls = new THREE.OrbitControls(camera, renderer.domElement);
 controls.enableDamping = true;
@@ -31,7 +42,6 @@ function getCamDist() { return window.innerWidth < 650 ? 25 : 10; }
 function getCamOffsetY() { return window.innerWidth < 650 ? -3.5 : -0.2; }
 
 controls.target.set(0, getCamOffsetY(), 0); 
-
 let sideToggleRight = true; 
 
 function updateCameraTo(view) {
@@ -66,7 +76,6 @@ updateCameraTo('iso');
 // --- 2. Advanced Layer Stacking Framework ---
 const mainDecalGroup = new THREE.Group();
 const ghostDecalGroup = new THREE.Group(); 
-
 scene.add(mainDecalGroup);
 scene.add(ghostDecalGroup);
 
@@ -93,6 +102,27 @@ function saveCanvasState() {
     actionHistory.push({ type: 'canvas', data: pCtx.getImageData(0, 0, 2048, 2048) });
 }
 
+// --- Toast Helper Logic ---
+let toastTimeout;
+function showToast(message, duration = 3000) {
+    const toast = document.getElementById('step-toast');
+    toast.innerText = message;
+    toast.classList.add('visible');
+    
+    clearTimeout(toastTimeout);
+    if (duration > 0) {
+        toastTimeout = setTimeout(() => {
+            toast.classList.remove('visible');
+        }, duration);
+    }
+}
+
+// Enable Mouse-Wheel Scrolling for Horizontal menus
+document.getElementById('decal-visual-picker').addEventListener('wheel', (evt) => {
+    evt.preventDefault();
+    document.getElementById('decal-visual-picker').scrollLeft += evt.deltaY;
+});
+
 // --- 3. UI, State, & Handlers ---
 let currentMode = 'camera'; 
 let activeShape = 'circle'; 
@@ -100,7 +130,7 @@ let activeSize = 3;
 let activeCamView = 'free';
 let activeDecalType = 'solid-stripe';
 let isPainting = false;
-let isPlacingDecal = false; // Fixed State Tracker added here!
+let isPlacingDecal = false; 
 let paintableMeshes = []; 
 let currentColor = '#e10600'; 
 let liveDecalHitData = null;
@@ -141,6 +171,11 @@ function setMode(mode) {
     clearGhosts();
     controls.enabled = (mode !== 'brush'); 
     
+    // Toast Prompts based on tool
+    if (mode === 'brush') showToast('Brush Mode: Draw directly on the car', 3000);
+    else if (mode === 'bucket') showToast('Bucket Mode: Click a part to fill it', 3000);
+    else if (mode === 'decal') showToast('Step 1: Click on the car to place a Decal', 0); // Stays until clicked
+
     if (mode === 'decal') {
         setTimeout(() => {
             const hit = getIntersection(window.innerWidth / 2, window.innerHeight / 2);
@@ -175,19 +210,21 @@ ui.brush.addEventListener('click', () => setMode('brush'));
 ui.bucket.addEventListener('click', () => setMode('bucket'));
 ui.decal.addEventListener('click', () => setMode('decal'));
 
-// Visual Decal Picker Logic
+// Decal Type Picker Logic
 document.querySelectorAll('.decal-btn').forEach(btn => {
     btn.addEventListener('click', (e) => {
         document.querySelectorAll('.decal-btn').forEach(b => b.classList.remove('active'));
         e.target.classList.add('active');
         activeDecalType = e.target.getAttribute('data-shape');
         updateLiveDecalPreview();
+        if(currentMode === 'decal' && !liveDecalHitData) {
+            showToast('Click anywhere on the car to place the Decal', 0);
+        }
     });
 });
 
-// --- Custom Color Mixer Logic ---
+// Custom Color Mixer Logic
 let tempColor = '#e10600'; 
-
 function hslToHex(h, s, l) {
     l /= 100;
     const a = s * Math.min(l, 1 - l) / 100;
@@ -206,7 +243,6 @@ function updateMixerPreview() {
     tempColor = hslToHex(h, s, l);
     ui.liveColorPreview.style.background = tempColor;
 }
-
 ui.hueSlider.addEventListener('input', updateMixerPreview);
 ui.satSlider.addEventListener('input', updateMixerPreview);
 ui.litSlider.addEventListener('input', updateMixerPreview);
@@ -219,8 +255,8 @@ ui.applyColorBtn.addEventListener('click', () => {
     ui.openMixerBtn.style.background = currentColor; 
     ui.customColorModal.style.display = 'none';
     if (currentMode === 'decal') updateLiveDecalPreview();
+    generateVisualDecalButtons(); // Update thumbnails to new color!
 });
-
 ui.openMixerBtn.style.background = currentColor;
 
 document.querySelectorAll('.size-btn').forEach(btn => {
@@ -236,10 +272,8 @@ document.querySelectorAll('.cam-btn').forEach(btn => {
     btn.addEventListener('click', (e) => {
         document.querySelectorAll('.cam-btn').forEach(b => b.classList.remove('active'));
         e.target.classList.add('active');
-        
         const view = e.target.getAttribute('data-cam');
         if (view === 'side' && activeCamView === 'side') sideToggleRight = !sideToggleRight; 
-        
         activeCamView = view;
         if (view === 'free') setMode('camera');
         else updateCameraTo(view);
@@ -254,6 +288,7 @@ const updateLiveDecalPreview = () => {
 };
 ui.decalSize.addEventListener('input', updateLiveDecalPreview);
 ui.decalRot.addEventListener('input', updateLiveDecalPreview);
+
 
 // --- 4. Geometry and Texture Generators ---
 function drawShape(ctx, x, y, size, type, color) {
@@ -385,7 +420,6 @@ function drawShape(ctx, x, y, size, type, color) {
         ctx.fillStyle = grad;
         ctx.fillRect(-size, -size, size*2, size*2);
     }
-    // --- NEW DECALS ---
     else if (type === 'grunge') {
         ctx.fillStyle = solidColor;
         for (let i = 0; i < 80; i++) {
@@ -435,7 +469,6 @@ function drawShape(ctx, x, y, size, type, color) {
         const spacing = size * 0.25;
         for (let x = -size; x <= size; x += spacing) {
             for (let y = -size; y <= size; y += spacing) {
-                // Creates a circular mask so dots fade out at the edges
                 const dist = Math.sqrt(x*x + y*y);
                 if (dist < size) {
                     const radius = (1 - (dist / size)) * (spacing * 0.4);
@@ -449,6 +482,27 @@ function drawShape(ctx, x, y, size, type, color) {
 
     ctx.restore();
 }
+
+// Automatically generate mini-canvases for the Decal UI Buttons
+function generateVisualDecalButtons() {
+    document.querySelectorAll('.decal-btn').forEach(btn => {
+        const shape = btn.getAttribute('data-shape');
+        const tCanvas = document.createElement('canvas');
+        tCanvas.width = 64; tCanvas.height = 64;
+        const tCtx = tCanvas.getContext('2d');
+        // Clear background
+        tCtx.clearRect(0, 0, 64, 64);
+        // Draw icon shape in current color
+        drawShape(tCtx, 32, 32, 22, shape, currentColor);
+        
+        btn.style.backgroundImage = `url(${tCanvas.toDataURL()})`;
+        btn.style.backgroundSize = 'contain';
+        btn.style.backgroundRepeat = 'no-repeat';
+        btn.style.backgroundPosition = 'center';
+    });
+}
+// Run once on init
+generateVisualDecalButtons();
 
 const materialCache = {};
 function getDecalMaterial(type, color) {
@@ -475,7 +529,8 @@ function getDecalMaterial(type, color) {
         polygonOffset: true, 
         polygonOffsetFactor: -4, 
         polygonOffsetUnits: -4, 
-        roughness: 0.2
+        roughness: 0.1, // lowered roughness to capture HDRI reflections better!
+        metalness: 0.1
     });
     
     materialCache[key] = mat;
@@ -582,10 +637,11 @@ domCanvas.addEventListener('pointerdown', (e) => {
         textureNeedsGPUUpdate = true; 
     } else if (currentMode === 'decal') {
         controls.enabled = false; 
-        isPlacingDecal = true; // FIX: Lock-in decal placement
+        isPlacingDecal = true;
         liveDecalHitData = { point: hit.point.clone(), normal: hit.face.normal.clone() };
         clearGhosts();
         refreshLivePreview();
+        showToast('Step 2: Now adjust Size and Rotation below', 0); // Guide to sliders
     }
 });
 
@@ -608,7 +664,7 @@ domCanvas.addEventListener('pointermove', (e) => {
         textureNeedsGPUUpdate = true; 
         lastScreenPos.copy(currentPos);
 
-    } else if (currentMode === 'decal' && liveDecalHitData && isPlacingDecal) { // FIX: Only move if actively pressing
+    } else if (currentMode === 'decal' && liveDecalHitData && isPlacingDecal) {
         const hit = getIntersection(e.clientX, e.clientY);
         if (hit) {
             liveDecalHitData = { point: hit.point.clone(), normal: hit.face.normal.clone() };
@@ -621,7 +677,7 @@ domCanvas.addEventListener('pointermove', (e) => {
 domCanvas.addEventListener('pointerup', (e) => {
     if (!e.isPrimary) return;
     isPainting = false;
-    isPlacingDecal = false; // FIX: Release placement lock
+    isPlacingDecal = false;
     controls.enabled = (currentMode !== 'brush' && currentMode !== 'decal'); 
     if (currentMode === 'decal') controls.enabled = true; 
 
@@ -648,6 +704,7 @@ ui.commitDecalBtn.addEventListener('click', () => {
         
         clearGhosts();
         liveDecalHitData = null; 
+        showToast('Decal Applied! Place another or change tools.', 3000);
     }
 });
 
@@ -666,6 +723,7 @@ ui.undoBtn.addEventListener('click', () => {
             });
             stampHistory.pop(); 
         }
+        showToast('Undo Successful', 2000);
     }
 });
 
@@ -682,6 +740,7 @@ ui.resetBtn.addEventListener('click', () => {
     paintableMeshes.forEach(mesh => {
         if (mesh.material) mesh.material.color.setHex(0xffffff);
     });
+    showToast('Car Reset to Factory Settings', 2000);
 });
 
 // --- 6. GLTF Car Asset Loader with Auto-Scaler & Loop Fix ---
@@ -740,7 +799,9 @@ loader.load(
                     if (!modelCache[groupKey]) {
                         modelCache[groupKey] = node.material.clone();
                         modelCache[groupKey].color.setHex(0xffffff); 
-                        modelCache[groupKey].map = baseTexture; 
+                        modelCache[groupKey].map = baseTexture;
+                        modelCache[groupKey].roughness = 0.4; // Optimized for HDRI setup 
+                        modelCache[groupKey].metalness = 0.5; // Metallic car paint!
                     }
                     node.material = modelCache[groupKey];
                     node.material.needsUpdate = true;
@@ -757,7 +818,8 @@ loader.load(
                         polygonOffset: true,
                         polygonOffsetFactor: -8, 
                         polygonOffsetUnits: -8,
-                        roughness: 0.2
+                        roughness: 0.3,
+                        metalness: 0.2
                     })
                 );
                 node.add(paintShell); 
@@ -765,6 +827,7 @@ loader.load(
         });
         
         scene.add(carModel);
+        showToast('Car Loaded! Pick a tool to start designing.', 4000);
     },
     (xhr) => {
         if (uiLogoText) {
