@@ -42,8 +42,8 @@ function updateCameraTo(view) {
     // Specifically push the Top View camera backwards along the Z-axis on mobile
     // This physically shifts the car UP towards the top of the phone screen
     if (view === 'top' && window.innerWidth < 650) {
-        tZ = 3.5;
-        cZ = 3.5;
+        tZ = 6.5;
+        cZ = 6.5;
     }
     
     // Elevated height properties (2.5 - 3.0) clear the floor pans cleanly when looking downward
@@ -138,6 +138,18 @@ function setMode(mode) {
     
     clearGhosts();
     controls.enabled = (mode !== 'brush'); 
+    
+    if (mode === 'decal') {
+        setTimeout(() => {
+            const hit = getIntersection(window.innerWidth / 2, window.innerHeight / 2);
+            if (hit) {
+                liveDecalHitData = { point: hit.point.clone(), normal: hit.face.normal.clone() };
+                refreshLivePreview();
+            }
+        }, 50);
+    } else {
+        liveDecalHitData = null;
+    }
 }
 
 ui.helpBtn.addEventListener('click', () => ui.helpModal.style.display = 'flex');
@@ -306,7 +318,8 @@ function projectStamp(point, normal, rotation, size, shape, color, zIndex, isPre
     let renderMat = mat;
     if (isPreview) {
         renderMat = mat.clone();
-        renderMat.opacity = 0.5; 
+        renderMat.transparent = true; 
+        renderMat.opacity = 1.0; 
     }
 
     const meshes = [];
@@ -319,7 +332,6 @@ function projectStamp(point, normal, rotation, size, shape, color, zIndex, isPre
         }
     });
 
-    // FIXED: Properly routes the mesh to the dedicated preview group
     const targetGroup = isPreview ? ghostDecalGroup : (isMirrored ? mirrorDecalGroup : mainDecalGroup);
     meshes.forEach(m => {
         targetGroup.add(m);
