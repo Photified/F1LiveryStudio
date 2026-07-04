@@ -1,60 +1,97 @@
 // --- 1. Scene, Camera, & Renderer ---
 const container = document.getElementById('viewport3d');
 const scene = new THREE.Scene();
-scene.background = new THREE.Color('#1a1a1a'); // Paint booth gray
+scene.background = new THREE.Color('#ffffff'); // Pure white background fallback
 
 const camera = new THREE.PerspectiveCamera(45, window.innerWidth / window.innerHeight, 0.1, 100);
 const renderer = new THREE.WebGLRenderer({ antialias: true, alpha: true });
 renderer.setSize(window.innerWidth, window.innerHeight);
 renderer.setPixelRatio(Math.min(window.devicePixelRatio, 2));
 renderer.shadowMap.enabled = true;
-renderer.shadowMap.type = THREE.PCFSoftShadowMap; // Softer shadows
+renderer.shadowMap.type = THREE.PCFSoftShadowMap; 
 renderer.outputEncoding = THREE.sRGBEncoding; 
 renderer.toneMapping = THREE.ACESFilmicToneMapping;
 renderer.toneMappingExposure = 1.0;
 
 container.appendChild(renderer.domElement);
 
-// Load Studio Paint Booth Environment
+// Load Studio Paint Booth Reflections
 const pmremGenerator = new THREE.PMREMGenerator(renderer);
 scene.environment = pmremGenerator.fromScene(new THREE.RoomEnvironment(), 0.04).texture;
 
 // Fallback Lights
-scene.add(new THREE.AmbientLight(0xffffff, 0.3));
+scene.add(new THREE.AmbientLight(0xffffff, 0.5));
 
-// Top spotlight that casts shadows onto the floor
-const topLight = new THREE.DirectionalLight(0xffffff, 0.8);
-topLight.position.set(0, 15, 0);
+// Top spotlight inside the booth
+const topLight = new THREE.DirectionalLight(0xffffff, 0.7);
+topLight.position.set(0, 12, 0);
 topLight.castShadow = true;
 topLight.shadow.mapSize.width = 2048;
 topLight.shadow.mapSize.height = 2048;
 topLight.shadow.camera.near = 0.5;
 topLight.shadow.camera.far = 25;
-topLight.shadow.camera.left = -10;
-topLight.shadow.camera.right = 10;
-topLight.shadow.camera.top = 10;
-topLight.shadow.camera.bottom = -10;
+topLight.shadow.camera.left = -15;
+topLight.shadow.camera.right = 15;
+topLight.shadow.camera.top = 15;
+topLight.shadow.camera.bottom = -15;
 topLight.shadow.bias = -0.0001;
 scene.add(topLight);
 
-// Setup the Floor Pedestal (Will adjust height when car loads)
-const floorGeo = new THREE.CylinderGeometry(14, 14, 0.5, 64);
+// --- PROCEDURAL CEMENT TEXTURE GENERATOR ---
+function generateCementTexture() {
+    const canvas = document.createElement('canvas');
+    canvas.width = 512; canvas.height = 512;
+    const ctx = canvas.getContext('2d');
+    
+    // Base grey
+    ctx.fillStyle = '#a0a0a0';
+    ctx.fillRect(0, 0, 512, 512);
+    
+    // Draw 40,000 random grains of sand/noise for a rough concrete look
+    for (let i = 0; i < 40000; i++) {
+        ctx.fillStyle = Math.random() > 0.5 ? 'rgba(255,255,255,0.04)' : 'rgba(0,0,0,0.04)';
+        ctx.fillRect(Math.random() * 512, Math.random() * 512, Math.random() * 3, Math.random() * 3);
+    }
+    
+    const tex = new THREE.CanvasTexture(canvas);
+    tex.wrapS = THREE.RepeatWrapping;
+    tex.wrapT = THREE.RepeatWrapping;
+    tex.repeat.set(10, 10); // Tile the texture across the floor
+    return tex;
+}
+
+// Setup the Square Floor Pedestal
+const floorGeo = new THREE.BoxGeometry(60, 0.5, 60);
 const floorMat = new THREE.MeshStandardMaterial({ 
-    color: 0x111111, 
-    roughness: 0.15, 
-    metalness: 0.6 
+    color: 0x999999, 
+    map: generateCementTexture(),
+    roughness: 0.9, 
+    metalness: 0.0 
 });
 const studioFloor = new THREE.Mesh(floorGeo, floorMat);
 studioFloor.receiveShadow = true;
-studioFloor.visible = false; // Hide until car is positioned
+studioFloor.visible = false; 
 scene.add(studioFloor);
+
+// Setup the Paint Booth Walls (Simple White Room)
+const boothGeo = new THREE.BoxGeometry(60, 30, 60);
+const boothMat = new THREE.MeshStandardMaterial({
+    color: 0xf5f5f5, // Slight off-white to contrast the pure white lights
+    side: THREE.BackSide, // Render the inside of the box!
+    roughness: 1.0,
+    metalness: 0.0
+});
+const paintBooth = new THREE.Mesh(boothGeo, boothMat);
+paintBooth.receiveShadow = true;
+paintBooth.visible = false;
+scene.add(paintBooth);
 
 
 const controls = new THREE.OrbitControls(camera, renderer.domElement);
 controls.enableDamping = true;
 controls.dampingFactor = 0.05;
-// Prevent users from going completely under the floor
-controls.maxPolarAngle = Math.PI / 2 + 0.05; 
+controls.maxPolarAngle = Math.PI / 2 + 0.05; // Prevent users from looking under the floor
+controls.maxDistance = 28; // Prevent users from zooming outside the walls of the paint booth
 
 let activeCamView = 'iso'; 
 
@@ -870,6 +907,10 @@ loader.load(
         const updatedBox = new THREE.Box3().setFromObject(carModel);
         studioFloor.position.y = updatedBox.min.y - 0.25; 
         studioFloor.visible = true;
+        
+        // Position the white paint booth walls seamlessly around the floor
+        paintBooth.position.y = studioFloor.position.y + 14.75; 
+        paintBooth.visible = true;
 
         const targetMeshes = [];
         carModel.traverse((node) => {
