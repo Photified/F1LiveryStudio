@@ -29,27 +29,45 @@
         
         .nav-right { width: 120px; display: flex; gap: 8px; justify-content: flex-end; flex-shrink: 0; }
 
-        .icon-btn {
-            background: #2a2a2a; border: 1px solid #555; border-radius: 8px;
-            color: white; font-size: 16px; width: 36px; height: 36px;
-            display: flex; justify-content: center; align-items: center;
-            cursor: pointer; transition: 0.3s; user-select: none;
-        }
-        .icon-btn:hover { background: #3a3a3a; }
-
         .camera-navbar {
             width: 100%; background: rgba(26, 26, 26, 0.95);
-            border-bottom: 1px solid #333; padding: 6px 10px;
-            box-sizing: border-box; display: flex; flex-direction: column;
-            align-items: center; gap: 4px; z-index: 45;
+            border-bottom: 1px solid #333; padding: 8px 15px;
+            box-sizing: border-box; display: flex; flex-direction: row;
+            justify-content: center; align-items: center; gap: 15px; z-index: 45;
         }
+
+        /* Module Panels to visually separate the tools on the bar */
+        .ui-panel {
+            background: rgba(40, 40, 40, 0.6);
+            border: 1px solid #444;
+            border-radius: 8px;
+            padding: 6px 12px;
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            gap: 6px;
+        }
+        .ui-panel.camera-panel { flex: 1; max-width: 450px; min-width: 0; }
+        .ui-panel.action-panel { flex-shrink: 0; }
+
+        .action-buttons {
+            display: flex; gap: 8px; align-items: center;
+        }
+
+        .icon-btn {
+            background: #2a2a2a; border: 1px solid #555; border-radius: 6px;
+            color: white; font-size: 15px; width: 32px; height: 32px;
+            display: flex; justify-content: center; align-items: center;
+            cursor: pointer; transition: 0.3s; user-select: none; flex-shrink: 0;
+        }
+        .icon-btn:hover { background: #3a3a3a; }
 
         #viewport3d { width: 100vw; flex-grow: 1; position: relative; z-index: 1; background: #1a1a1a; }
         #viewport3d canvas { touch-action: none !important; outline: none; display: block; }
 
         /* -- STEP HELPER TOAST -- */
         #step-toast {
-            position: absolute; top: 155px; left: 50%; transform: translateX(-50%);
+            position: absolute; top: 175px; left: 50%; transform: translateX(-50%);
             background: rgba(225, 6, 0, 0.9); border: 1px solid #ff3b30; color: white;
             padding: 8px 16px; border-radius: 20px; font-size: 12px; font-weight: bold;
             letter-spacing: 0.5px; z-index: 40; pointer-events: none;
@@ -70,12 +88,12 @@
         .btn-row { display: flex; flex-wrap: wrap; justify-content: center; gap: 6px; align-items: center; width: 100%; }
         
         .horizontal-scroll {
-            display: flex; overflow-x: auto; gap: 8px; padding-bottom: 8px; width: 100%;
-            scrollbar-width: thin; scrollbar-color: #555 #1a1a1a; /* Firefox */
+            display: flex; overflow-x: auto; gap: 8px; padding-bottom: 6px; width: 100%;
+            scrollbar-width: thin; scrollbar-color: #555 transparent; /* Firefox */
         }
         /* Custom scrollbar for desktop webkit */
         .horizontal-scroll::-webkit-scrollbar { height: 6px; }
-        .horizontal-scroll::-webkit-scrollbar-track { background: #1a1a1a; border-radius: 4px; }
+        .horizontal-scroll::-webkit-scrollbar-track { background: transparent; }
         .horizontal-scroll::-webkit-scrollbar-thumb { background: #555; border-radius: 4px; }
         .horizontal-scroll::-webkit-scrollbar-thumb:hover { background: #777; }
         
@@ -147,9 +165,10 @@
             .top-navbar { height: 70px; padding: 0 10px; }
             .nav-left, .nav-right { width: 80px; } 
             .logo-container img { max-height: 65%; }
-            .icon-btn { width: 32px; height: 32px; font-size: 14px; }
+            .camera-navbar { padding: 10px 5px; gap: 8px; } 
+            .icon-btn { width: 30px; height: 30px; font-size: 13px; }
             #loading-text { font-size: 9px; }
-            #step-toast { top: 125px; }
+            #step-toast { top: 155px; }
         }
     </style>
 </head>
@@ -158,23 +177,32 @@
     <div class="top-navbar">
         <div class="nav-left"><span id="loading-text"></span></div>
         <div class="logo-container"><img src="logo.png" alt="Logo"></div>
-        <div class="nav-right">
-            <button id="undoBtn" class="icon-btn" title="Undo">↩️</button>
-            <button id="resetBtn" class="icon-btn" title="Reset All">🗑️</button>
-            <button id="helpBtn" class="icon-btn" title="Settings & Help">⚙️</button>
-        </div>
+        <div class="nav-right"></div>
     </div>
 
     <div class="camera-navbar">
-        <label>Camera Perspective</label>
-        <div class="horizontal-scroll" id="cam-scroll" style="justify-content: center;">
-            <button class="cam-btn active" data-cam="free">Orbit</button>
-            <button class="cam-btn" id="cam-side" data-cam="side">Side</button>
-            <button class="cam-btn" data-cam="front">Front</button>
-            <button class="cam-btn" data-cam="back">Back</button>
-            <button class="cam-btn" data-cam="top">Top</button>
-            <button class="cam-btn" data-cam="iso">45°</button>
+        
+        <div class="ui-panel camera-panel">
+            <label>Camera Perspective</label>
+            <div class="horizontal-scroll" id="cam-scroll" style="justify-content: center;">
+                <button class="cam-btn active" data-cam="free">Orbit</button>
+                <button class="cam-btn" id="cam-side" data-cam="side">Side</button>
+                <button class="cam-btn" data-cam="front">Front</button>
+                <button class="cam-btn" data-cam="back">Back</button>
+                <button class="cam-btn" data-cam="top">Top</button>
+                <button class="cam-btn" data-cam="iso">45°</button>
+            </div>
         </div>
+
+        <div class="ui-panel action-panel">
+            <label>Actions</label>
+            <div class="action-buttons">
+                <button id="undoBtn" class="icon-btn" title="Undo">↩️</button>
+                <button id="resetBtn" class="icon-btn" title="Reset All">🗑️</button>
+                <button id="helpBtn" class="icon-btn" title="Settings & Help">⚙️</button>
+            </div>
+        </div>
+
     </div>
 
     <div id="step-toast">Select a tool to begin</div>
