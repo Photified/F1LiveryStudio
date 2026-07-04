@@ -100,6 +100,7 @@ let activeSize = 3;
 let activeCamView = 'free';
 let activeDecalType = 'solid-stripe';
 let isPainting = false;
+let isPlacingDecal = false; // Fixed State Tracker added here!
 let paintableMeshes = []; 
 let currentColor = '#e10600'; 
 let liveDecalHitData = null;
@@ -384,6 +385,67 @@ function drawShape(ctx, x, y, size, type, color) {
         ctx.fillStyle = grad;
         ctx.fillRect(-size, -size, size*2, size*2);
     }
+    // --- NEW DECALS ---
+    else if (type === 'grunge') {
+        ctx.fillStyle = solidColor;
+        for (let i = 0; i < 80; i++) {
+            const px = (Math.random() - 0.5) * size * 2;
+            const py = (Math.random() - 0.5) * size * 2;
+            const r = Math.random() * size * 0.15;
+            ctx.beginPath();
+            ctx.arc(px, py, r, 0, Math.PI * 2);
+            ctx.fill();
+        }
+    }
+    else if (type === 'camo') {
+        ctx.fillStyle = solidColor;
+        for (let i = 0; i < 20; i++) {
+            const px = (Math.random() - 0.5) * size * 1.8;
+            const py = (Math.random() - 0.5) * size * 1.8;
+            ctx.beginPath();
+            ctx.ellipse(px, py, (Math.random() * 0.4 + 0.2) * size, (Math.random() * 0.2 + 0.1) * size, Math.random() * Math.PI, 0, Math.PI * 2);
+            ctx.fill();
+        }
+    }
+    else if (type === 'grid') {
+        ctx.strokeStyle = solidColor;
+        ctx.lineWidth = size * 0.08;
+        for (let i = -size; i <= size; i += size * 0.4) {
+            ctx.beginPath(); ctx.moveTo(i, -size); ctx.lineTo(i, size); ctx.stroke();
+            ctx.beginPath(); ctx.moveTo(-size, i); ctx.lineTo(size, i); ctx.stroke();
+        }
+    }
+    else if (type === 'tech-lines') {
+        ctx.strokeStyle = solidColor;
+        ctx.lineWidth = size * 0.08;
+        ctx.lineJoin = 'bevel';
+        ctx.beginPath();
+        ctx.moveTo(-size, 0); 
+        ctx.lineTo(-size*0.4, 0); 
+        ctx.lineTo(-size*0.1, -size*0.4); 
+        ctx.lineTo(size*0.3, -size*0.4); 
+        ctx.lineTo(size*0.6, 0); 
+        ctx.lineTo(size, 0);
+        ctx.moveTo(-size*0.3, size*0.5); 
+        ctx.lineTo(size*0.8, size*0.5);
+        ctx.stroke();
+    }
+    else if (type === 'dots') {
+        ctx.fillStyle = solidColor;
+        const spacing = size * 0.25;
+        for (let x = -size; x <= size; x += spacing) {
+            for (let y = -size; y <= size; y += spacing) {
+                // Creates a circular mask so dots fade out at the edges
+                const dist = Math.sqrt(x*x + y*y);
+                if (dist < size) {
+                    const radius = (1 - (dist / size)) * (spacing * 0.4);
+                    ctx.beginPath();
+                    ctx.arc(x, y, radius, 0, Math.PI * 2);
+                    ctx.fill();
+                }
+            }
+        }
+    }
 
     ctx.restore();
 }
@@ -520,6 +582,7 @@ domCanvas.addEventListener('pointerdown', (e) => {
         textureNeedsGPUUpdate = true; 
     } else if (currentMode === 'decal') {
         controls.enabled = false; 
+        isPlacingDecal = true; // FIX: Lock-in decal placement
         liveDecalHitData = { point: hit.point.clone(), normal: hit.face.normal.clone() };
         clearGhosts();
         refreshLivePreview();
@@ -545,7 +608,7 @@ domCanvas.addEventListener('pointermove', (e) => {
         textureNeedsGPUUpdate = true; 
         lastScreenPos.copy(currentPos);
 
-    } else if (currentMode === 'decal' && liveDecalHitData) {
+    } else if (currentMode === 'decal' && liveDecalHitData && isPlacingDecal) { // FIX: Only move if actively pressing
         const hit = getIntersection(e.clientX, e.clientY);
         if (hit) {
             liveDecalHitData = { point: hit.point.clone(), normal: hit.face.normal.clone() };
@@ -558,6 +621,7 @@ domCanvas.addEventListener('pointermove', (e) => {
 domCanvas.addEventListener('pointerup', (e) => {
     if (!e.isPrimary) return;
     isPainting = false;
+    isPlacingDecal = false; // FIX: Release placement lock
     controls.enabled = (currentMode !== 'brush' && currentMode !== 'decal'); 
     if (currentMode === 'decal') controls.enabled = true; 
 
