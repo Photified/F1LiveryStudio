@@ -19,22 +19,20 @@
             align-items: center; justify-content: space-between;
             padding: 0 15px; box-sizing: border-box; z-index: 50;
         }
+        .logo-container { height: 100%; display: flex; align-items: center; flex-grow: 1; justify-content: center; }
         
-        .nav-actions { display: flex; gap: 8px; width: 72px; }
-        .logo-container { flex-grow: 1; text-align: center; color: #e10600; font-weight: 900; font-size: 18px; font-style: italic; letter-spacing: 1px; }
-        .nav-right { width: 72px; display: flex; justify-content: flex-end; }
-
-        .icon-btn {
-            background: #2a2a2a; border: 1px solid #555; border-radius: 8px;
+        .settings-cog {
+            background: #2a2a2a; border: 1px solid #555; border-radius: 50%;
             color: white; font-size: 16px; width: 36px; height: 36px;
             display: flex; justify-content: center; align-items: center;
             cursor: pointer; transition: 0.3s; user-select: none;
         }
-        .icon-btn:hover { background: #3a3a3a; }
+        .settings-cog:hover { background: #3a3a3a; transform: rotate(45deg); }
+        .nav-placeholder { width: 36px; } 
 
         .camera-navbar {
             width: 100%; background: rgba(26, 26, 26, 0.95);
-            border-bottom: 1px solid #333; padding: 6px 10px;
+            border-bottom: 1px solid #333; padding: 8px 10px;
             box-sizing: border-box; display: flex; flex-direction: column;
             align-items: center; gap: 4px; z-index: 45;
         }
@@ -45,41 +43,30 @@
         #control-center {
             position: absolute; bottom: 12px; left: 50%; transform: translateX(-50%);
             background: rgba(20, 20, 20, 0.9); border: 1px solid #444; backdrop-filter: blur(12px);
-            padding: 12px 14px; border-radius: 14px; 
-            display: flex; flex-direction: column; gap: 10px; align-items: center; 
-            z-index: 10; width: 94%; max-width: 500px; box-shadow: 0 10px 30px rgba(0,0,0,0.7);
+            padding: 12px 16px; border-radius: 14px; 
+            display: flex; flex-direction: column; gap: 12px; align-items: center; 
+            z-index: 10; width: 92%; max-width: 500px; box-shadow: 0 10px 30px rgba(0,0,0,0.7);
         }
 
-        .tool-group { display: flex; flex-direction: column; gap: 4px; align-items: center; width: 100%; overflow: hidden; }
+        .tool-group { display: flex; flex-direction: column; gap: 4px; align-items: center; width: 100%; }
         .btn-row { display: flex; flex-wrap: wrap; justify-content: center; gap: 6px; align-items: center; width: 100%; }
         
-        .horizontal-scroll {
-            display: flex; overflow-x: auto; gap: 8px; padding-bottom: 4px; width: 100%;
-            scrollbar-width: none; /* Firefox */
-        }
-        .horizontal-scroll::-webkit-scrollbar { display: none; } /* Chrome/Safari */
-        
         label { font-size: 9px; text-transform: uppercase; color: #aaa; font-weight: bold; letter-spacing: 1px; text-align: center; }
-        button { background: #2a2a2a; color: white; border: 1px solid #555; padding: 7px 12px; border-radius: 6px; font-weight: bold; cursor: pointer; font-size: 12px; transition: 0.2s; user-select: none; flex-shrink: 0; }
+        button, select { background: #2a2a2a; color: white; border: 1px solid #555; padding: 7px 12px; border-radius: 6px; font-weight: bold; cursor: pointer; font-size: 12px; transition: 0.2s; user-select: none; }
         button:hover { background: #3a3a3a; border-color: #777; }
         button.active { background: #e10600; border-color: #ff3b30; }
         
-        .cam-btn { padding: 4px 8px; font-size: 11px; }
+        .cam-btn { padding: 5px 10px; font-size: 11px; }
         .size-btn { padding: 5px 8px; font-size: 11px; min-width: 30px; }
 
         .color-picker-wrap {
-            display: flex; align-items: center; justify-content: center; gap: 12px; 
-            background: #252525; padding: 6px 12px; border-radius: 8px; border: 1px solid #444; width: 100%; box-sizing: border-box;
+            display: flex; flex-direction: column; gap: 4px; 
+            background: #252525; padding: 6px; border-radius: 8px; border: 1px solid #444;
+            width: 100%; box-sizing: border-box;
         }
-        
-        /* Native Color Input Styling */
-        input[type="color"] { width: 36px; height: 36px; border: none; border-radius: 5px; cursor: pointer; background: transparent; padding: 0; }
-        input[type="color"]::-webkit-color-swatch-wrapper { padding: 0; }
-        input[type="color"]::-webkit-color-swatch { border: 2px solid #555; border-radius: 6px; }
-        
-        .recent-colors { display: flex; gap: 6px; }
+        .color-row { display: flex; gap: 4px; justify-content: center; }
         .color-swatch {
-            width: 28px; height: 28px; border-radius: 6px; border: 2px solid transparent; 
+            width: 22px; height: 22px; border-radius: 5px; border: 2px solid transparent; 
             cursor: pointer; flex-shrink: 0; box-sizing: border-box; transition: 0.15s;
         }
         .color-swatch.active { border-color: white; transform: scale(1.1); box-shadow: 0 0 6px rgba(255,255,255,0.6); }
@@ -98,30 +85,37 @@
         .modal-content ul { text-align: left; padding-left: 20px; line-height: 1.6; color: #ccc; font-size: 13px;}
         .modal-content button { margin-top: 15px; width: 100%; padding: 12px; font-size: 14px; }
         #installAppBtn { background: #007aff; border-color: #0056b3; display: none; }
+
+        @media (max-width: 650px) {
+            .top-navbar { height: 50px; padding: 0 10px; }
+            .settings-cog { width: 32px; height: 32px; font-size: 14px; }
+            .camera-navbar { padding: 6px; }
+            #control-center { padding: 10px; gap: 8px; bottom: 8px; width: 94%; }
+            button, select { padding: 6px 10px; font-size: 11px; }
+            .cam-btn, .size-btn { padding: 4px 6px; font-size: 10px; }
+            .color-swatch { width: 18px; height: 18px; border-radius: 4px; }
+        }
     </style>
 </head>
 <body>
 
     <div class="top-navbar">
-        <div class="nav-actions">
-            <button id="undoBtn" class="icon-btn" title="Undo">↩️</button>
-            <button id="resetBtn" class="icon-btn" title="Reset All">🗑️</button>
+        <div class="nav-placeholder"></div>
+        <div class="logo-container" style="color: #e10600; font-weight: 900; font-size: 20px; font-style: italic; letter-spacing: 1px;">
+            🏎️ F1 LIVERY STUDIO
         </div>
-        <div class="logo-container">🏎️ F1 LIVERY</div>
-        <div class="nav-right">
-            <button id="helpBtn" class="icon-btn" title="Settings & Help">⚙️</button>
-        </div>
+        <button id="helpBtn" class="settings-cog" title="Settings & Help">⚙️</button>
     </div>
 
     <div class="camera-navbar">
         <label>Camera Perspective</label>
-        <div class="horizontal-scroll" style="justify-content: center;">
-            <button class="cam-btn active" data-cam="free">Orbit</button>
+        <div class="btn-row">
+            <button class="cam-btn active" data-cam="free">Free Orbit</button>
             <button class="cam-btn" id="cam-side" data-cam="side">Side</button>
             <button class="cam-btn" data-cam="front">Front</button>
             <button class="cam-btn" data-cam="back">Back</button>
             <button class="cam-btn" data-cam="top">Top</button>
-            <button class="cam-btn" data-cam="iso">45°</button>
+            <button class="cam-btn" data-cam="iso">45° Down</button>
         </div>
     </div>
 
@@ -134,7 +128,7 @@
                 <li><strong>🎥 Orbit Mode:</strong> Drag around screen space with one finger/mouse to rotate smoothly.</li>
                 <li><strong>🖌️ Brush Mode:</strong> Select an explicit sizing from Circle or Square presets and slide your finger across panels to draw clean continuous lines.</li>
                 <li><strong>🪣 Bucket Mode:</strong> Tap over target segments to fill background panels instantly.</li>
-                <li><strong>⭐ Decal Mode:</strong> Swipe through the graphical options, drag over the car to position, and <strong>Double-Tap to Stamp!</strong></li>
+                <li><strong>⭐ Decal Mode:</strong> Drag over the car to position your decal in real-time. Use sliders to resize and rotate, then tap <strong>Stamp</strong> to apply!</li>
                 <li><strong>👀 Side Camera:</strong> Double tap the <strong>Side</strong> perspective button to quickly swap between the left and right sides of the car.</li>
             </ul>
             <button id="installAppBtn">📲 Install Web App</button>
@@ -145,6 +139,7 @@
     <div id="control-center">
         
         <div class="tool-group">
+            <label>Studio Mode</label>
             <div class="btn-row">
                 <button id="mode-brush">🖌️ Brush</button>
                 <button id="mode-bucket">🪣 Bucket</button>
@@ -153,49 +148,88 @@
         </div>
 
         <div class="tool-group" id="brush-presets-wrap" style="display: none;">
+            <label>Circle Sizes</label>
             <div class="btn-row" style="margin-bottom: 2px;">
-                <button class="size-btn circle-size active" data-size="3">⭕ 1</button>
-                <button class="size-btn circle-size" data-size="6">⭕ 2</button>
-                <button class="size-btn circle-size" data-size="12">⭕ 3</button>
-                <button class="size-btn circle-size" data-size="25">⭕ 4</button>
-                <button class="size-btn circle-size" data-size="50">⭕ 5</button>
+                <button class="size-btn circle-size active" data-size="3">1</button>
+                <button class="size-btn circle-size" data-size="6">2</button>
+                <button class="size-btn circle-size" data-size="12">3</button>
+                <button class="size-btn circle-size" data-size="25">4</button>
+                <button class="size-btn circle-size" data-size="50">5</button>
             </div>
+            <label>Square Sizes</label>
             <div class="btn-row">
-                <button class="size-btn square-size" data-size="3">⬛ 1</button>
-                <button class="size-btn square-size" data-size="6">⬛ 2</button>
-                <button class="size-btn square-size" data-size="12">⬛ 3</button>
-                <button class="size-btn square-size" data-size="25">⬛ 4</button>
-                <button class="size-btn square-size" data-size="50">⬛ 5</button>
+                <button class="size-btn square-size" data-size="3">1</button>
+                <button class="size-btn square-size" data-size="6">2</button>
+                <button class="size-btn square-size" data-size="12">3</button>
+                <button class="size-btn square-size" data-size="25">4</button>
+                <button class="size-btn square-size" data-size="50">5</button>
             </div>
         </div>
 
         <div class="tool-group" id="decal-select-wrap" style="display: none;">
-            <div id="decal-visual-picker" class="horizontal-scroll">
-                <button class="decal-btn active" data-shape="solid-stripe">➖ Stripe</button>
-                <button class="decal-btn" data-shape="racing-stripes">🏎️ Double</button>
-                <button class="decal-btn" data-shape="fade-stripe">💨 Fade</button>
-                <button class="decal-btn" data-shape="chevron-sharp">⏩ Chevron</button>
-                <button class="decal-btn" data-shape="chevron-fade">🌫️ Fade Chev</button>
-                <button class="decal-btn" data-shape="speed-curve">🌙 Curve</button>
-                <button class="decal-btn" data-shape="swoosh-fade">🌪️ Swoosh</button>
-                <button class="decal-btn" data-shape="slash-angles">📐 Slashes</button>
-                <button class="decal-btn" data-shape="speed-lines">💨 Lines</button>
-                <button class="decal-btn" data-shape="flare">✨ Flare</button>
-                <button class="decal-btn" data-shape="wedge">📐 Wedge</button>
-                <button class="decal-btn" data-shape="triangle-fade">🔺 Tri Fade</button>
-                <button class="decal-btn" data-shape="gradient-block">🔲 Block</button>
-            </div>
+            <label>Decal Live Controls</label>
             <div class="btn-row">
-                <input type="range" id="toolSize" min="10" max="2500" value="100" style="width: 110px;" title="Scale">
-                <input type="range" id="decalRot" min="0" max="360" value="0" style="width: 110px;" title="Rotation">
+                <select id="decalType">
+                    <option value="solid-stripe">➖ Solid Stripe</option>
+                    <option value="racing-stripes">🏎️ Double Stripes</option>
+                    <option value="fade-stripe">💨 Fade Stripe</option>
+                    <option value="chevron-sharp">⏩ Sharp Chevron</option>
+                    <option value="chevron-fade">🌫️ Fade Chevron</option>
+                    <option value="speed-curve">🌙 Speed Curve</option>
+                    <option value="swoosh-fade">🌪️ Fade Swoosh</option>
+                    <option value="slash-angles">📐 Slash Angles</option>
+                    <option value="speed-lines">💨 Speed Lines</option>
+                    <option value="flare">✨ Speed Flare</option>
+                    <option value="wedge">📐 Wedge</option>
+                    <option value="triangle-fade">🔺 Triangle Fade</option>
+                    <option value="gradient-block">🔲 Soft Gradient</option>
+                </select>
+                <input type="range" id="toolSize" min="10" max="2500" value="100" style="width: 65px;" title="Scale">
+                <input type="range" id="decalRot" min="0" max="360" value="0" style="width: 65px;" title="Rotation">
+                <button id="commitDecalBtn" style="background: #007aff; border-color: #0056b3;">📌 Stamp</button>
             </div>
         </div>
 
         <div class="tool-group">
+            <label>Color Palette</label>
             <div class="color-picker-wrap">
-                <input type="color" id="nativeColorPicker" value="#e10600">
-                <div id="recent-colors" class="recent-colors">
-                    </div>
+                <div class="color-row">
+                    <div class="color-swatch" style="background:#ffffff;" data-color="#ffffff"></div>
+                    <div class="color-swatch" style="background:#ffb3ba;" data-color="#ffb3ba"></div>
+                    <div class="color-swatch" style="background:#ffdfba;" data-color="#ffdfba"></div>
+                    <div class="color-swatch" style="background:#ffffba;" data-color="#ffffba"></div>
+                    <div class="color-swatch" style="background:#baffc9;" data-color="#baffc9"></div>
+                    <div class="color-swatch" style="background:#bae1ff;" data-color="#bae1ff"></div>
+                    <div class="color-swatch" style="background:#e3baff;" data-color="#e3baff"></div>
+                    <div class="color-swatch" style="background:#e0e0e0;" data-color="#e0e0e0"></div>
+                </div>
+                <div class="color-row">
+                    <div class="color-swatch active" style="background:#e10600;" data-color="#e10600"></div>
+                    <div class="color-swatch" style="background:#ff0000;" data-color="#ff0000"></div>
+                    <div class="color-swatch" style="background:#ff7f00;" data-color="#ff7f00"></div>
+                    <div class="color-swatch" style="background:#ffff00;" data-color="#ffff00"></div>
+                    <div class="color-swatch" style="background:#00ff00;" data-color="#00ff00"></div>
+                    <div class="color-swatch" style="background:#007aff;" data-color="#007aff"></div>
+                    <div class="color-swatch" style="background:#8a2be2;" data-color="#8a2be2"></div>
+                    <div class="color-swatch" style="background:#888888;" data-color="#888888"></div>
+                </div>
+                <div class="color-row">
+                    <div class="color-swatch" style="background:#000000;" data-color="#000000"></div>
+                    <div class="color-swatch" style="background:#8b0000;" data-color="#8b0000"></div>
+                    <div class="color-swatch" style="background:#cc5500;" data-color="#cc5500"></div>
+                    <div class="color-swatch" style="background:#b8b800;" data-color="#b8b800"></div>
+                    <div class="color-swatch" style="background:#006400;" data-color="#006400"></div>
+                    <div class="color-swatch" style="background:#00008b;" data-color="#00008b"></div>
+                    <div class="color-swatch" style="background:#4b0082;" data-color="#4b0082"></div>
+                    <div class="color-swatch" style="background:#404040;" data-color="#404040"></div>
+                </div>
+            </div>
+        </div>
+
+        <div class="tool-group">
+            <div class="btn-row">
+                <button id="undoBtn" style="background: #333;">↩️ Undo</button>
+                <button id="resetBtn" style="background: #555;">Reset All</button>
             </div>
         </div>
     </div>
