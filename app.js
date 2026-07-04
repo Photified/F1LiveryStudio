@@ -343,8 +343,6 @@ function getIntersection(clientX, clientY) {
 function executeUVBrush(hit) {
     if (!hit.uv) return;
 
-    // THE BUCKET-DELETING OVERRIDE HAS BEEN COMPLETELY REMOVED FROM HERE
-
     const x = hit.uv.x * 2048;
     const y = hit.uv.y * 2048;
     pCtx.fillStyle = currentColor;
@@ -365,8 +363,9 @@ function projectStamp(point, normal, rotation, size, shape, color, zIndex, isPre
     dummy.lookAt(point.clone().add(normal));
     dummy.rotateZ(rotation * Math.PI / 180);
 
-    // FIXED: Projection depth hardcoded to 5.0 so it actually reaches the curved chassis
-    const scale = new THREE.Vector3(size, size, 5.0); 
+    // FIXED: Depth dynamically scales with the decal size, ensuring massive fades wrap the whole car
+    const depth = Math.max(5.0, size);
+    const scale = new THREE.Vector3(size, size, depth); 
     const mat = getDecalMaterial(shape, color);
     
     let renderMat = mat;

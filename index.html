@@ -4,6 +4,7 @@
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no, viewport-fit=cover">
     <title>3D F1 Livery Studio Pro</title>
+    <link rel="icon" href="data:image/svg+xml,<svg xmlns=%22http://www.w3.org/2000/svg%22 viewBox=%220 0 100 100%22><text y=%22.9em%22 font-size=%2290%22>🏎️</text></svg>">
     <link rel="manifest" href="manifest.json">
     <style>
         body { 
@@ -19,8 +20,7 @@
             padding: 0 15px; box-sizing: border-box; z-index: 50;
         }
         .logo-container { height: 100%; display: flex; align-items: center; flex-grow: 1; justify-content: center; }
-        .app-logo { max-width: 80%; height: 38px; object-fit: contain; }
-
+        
         .settings-cog {
             background: #2a2a2a; border: 1px solid #555; border-radius: 50%;
             color: white; font-size: 16px; width: 36px; height: 36px;
@@ -88,7 +88,6 @@
 
         @media (max-width: 650px) {
             .top-navbar { height: 50px; padding: 0 10px; }
-            .app-logo { height: 28px; }
             .settings-cog { width: 32px; height: 32px; font-size: 14px; }
             .camera-navbar { padding: 6px; }
             #control-center { padding: 10px; gap: 8px; bottom: 8px; width: 94%; }
@@ -102,8 +101,8 @@
 
     <div class="top-navbar">
         <div class="nav-placeholder"></div>
-        <div class="logo-container">
-            <img src="logo.png" alt="Livery Studio Logo" class="app-logo">
+        <div class="logo-container" style="color: #e10600; font-weight: 900; font-size: 20px; font-style: italic; letter-spacing: 1px;">
+            🏎️ F1 LIVERY STUDIO
         </div>
         <button id="helpBtn" class="settings-cog" title="Settings & Help">⚙️</button>
     </div>
@@ -179,7 +178,7 @@
                     <option value="wedge">📐 Wedge</option>
                     <option value="gradient-block">🔲 Soft Gradient</option>
                 </select>
-                <input type="range" id="toolSize" min="10" max="500" value="100" style="width: 65px;" title="Scale">
+                <input type="range" id="toolSize" min="10" max="2500" value="100" style="width: 65px;" title="Scale">
                 <input type="range" id="decalRot" min="0" max="360" value="0" style="width: 65px;" title="Rotation">
                 <button id="commitDecalBtn" style="background: #007aff; border-color: #0056b3;">📌 Stamp</button>
             </div>
