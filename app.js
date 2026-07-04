@@ -118,7 +118,14 @@ const ui = {
     helpModal: document.getElementById('helpModal'),
     closeHelpBtn: document.getElementById('closeHelpBtn'),
     installAppBtn: document.getElementById('installAppBtn'),
-    nativeColorPicker: document.getElementById('nativeColorPicker')
+    openMixerBtn: document.getElementById('openMixerBtn'),
+    customColorModal: document.getElementById('customColorModal'),
+    liveColorPreview: document.getElementById('liveColorPreview'),
+    hueSlider: document.getElementById('hueSlider'),
+    satSlider: document.getElementById('satSlider'),
+    litSlider: document.getElementById('litSlider'),
+    cancelColorBtn: document.getElementById('cancelColorBtn'),
+    applyColorBtn: document.getElementById('applyColorBtn')
 };
 
 function setMode(mode) {
@@ -176,11 +183,56 @@ document.querySelectorAll('.decal-btn').forEach(btn => {
     });
 });
 
-// Color Wheel Handler (Simplified)
-ui.nativeColorPicker.addEventListener('input', (e) => {
-    currentColor = e.target.value;
+// --- Custom Color Mixer Logic ---
+let tempColor = '#e10600'; // Stores color while sliding before applying
+
+// HSL to Hex Converter Formula
+function hslToHex(h, s, l) {
+    l /= 100;
+    const a = s * Math.min(l, 1 - l) / 100;
+    const f = n => {
+        const k = (n + h / 30) % 12;
+        const color = l - a * Math.max(Math.min(k - 3, 9 - k, 1), -1);
+        return Math.round(255 * color).toString(16).padStart(2, '0');
+    };
+    return `#${f(0)}${f(8)}${f(4)}`;
+}
+
+// Update the preview box while dragging sliders
+function updateMixerPreview() {
+    const h = ui.hueSlider.value;
+    const s = ui.satSlider.value;
+    const l = ui.litSlider.value;
+    tempColor = hslToHex(h, s, l);
+    ui.liveColorPreview.style.background = tempColor;
+}
+
+ui.hueSlider.addEventListener('input', updateMixerPreview);
+ui.satSlider.addEventListener('input', updateMixerPreview);
+ui.litSlider.addEventListener('input', updateMixerPreview);
+
+// Open Modal
+ui.openMixerBtn.addEventListener('click', () => {
+    ui.customColorModal.style.display = 'flex';
+});
+
+// Close without saving
+ui.cancelColorBtn.addEventListener('click', () => {
+    ui.customColorModal.style.display = 'none';
+});
+
+// Apply the paint
+ui.applyColorBtn.addEventListener('click', () => {
+    currentColor = tempColor;
+    ui.openMixerBtn.style.background = currentColor; // Update the wheel button color to show active
+    ui.customColorModal.style.display = 'none';
+    
     if (currentMode === 'decal') updateLiveDecalPreview();
 });
+
+// Set initial wheel button color on load
+ui.openMixerBtn.style.background = currentColor;
+
 
 document.querySelectorAll('.size-btn').forEach(btn => {
     btn.addEventListener('click', (e) => {
@@ -472,7 +524,7 @@ let gestureMoved = false;
 let lastTapTime = 0; 
 
 domCanvas.addEventListener('pointerdown', (e) => {
-    if (!e.isPrimary || e.target.closest('#control-center') || e.target.closest('.top-navbar') || e.target.closest('.camera-navbar')) return;
+    if (!e.isPrimary || e.target.closest('#control-center') || e.target.closest('.top-navbar') || e.target.closest('.camera-navbar') || e.target.closest('#customColorModal')) return;
     touchStartPos.set(e.clientX, e.clientY);
     lastScreenPos.set(e.clientX, e.clientY);
     gestureMoved = false;
@@ -665,7 +717,7 @@ loader.load(
                         roughness: 0.2
                     })
                 );
-                node.add(paintShell); // Safe to add now!
+                node.add(paintShell); 
             }
         });
         
