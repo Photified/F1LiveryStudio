@@ -812,14 +812,15 @@ baseTexture.flipY = false;
 baseTexture.encoding = THREE.sRGBEncoding;
 
 const modelCache = {}; 
-const uiLogoText = document.querySelector('.logo-container'); 
+
+// Updated: Target the specific span we created for loading text
+const uiLogoText = document.getElementById('loading-text'); 
 
 loader.load(
     'scene.gltf', 
     (gltf) => {
         if (uiLogoText) {
-            uiLogoText.innerText = '🏎️ F1 LIVERY'; 
-            uiLogoText.style.color = '#e10600'; 
+            uiLogoText.innerText = ''; // Clear loading text when done
         }
 
         const carModel = gltf.scene;
@@ -898,7 +899,6 @@ loader.load(
                 const mb = (xhr.loaded / 1048576).toFixed(1);
                 uiLogoText.innerText = `LOADING... ${mb}MB`;
             }
-            uiLogoText.style.color = '#ff8700'; 
         }
     },
     (error) => {
