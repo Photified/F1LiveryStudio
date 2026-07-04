@@ -177,23 +177,17 @@ document.querySelectorAll('.decal-btn').forEach(btn => {
     });
 });
 
-// Dynamic CSS styling to ensure the massive color palette wraps cleanly
 ui.recentColorsWrap.style.flexWrap = 'wrap';
 ui.recentColorsWrap.style.justifyContent = 'center';
 ui.recentColorsWrap.style.padding = '4px 0';
 ui.recentColorsWrap.style.maxHeight = '90px';
 ui.recentColorsWrap.style.overflowY = 'auto';
 
-// Full Rainbow Spectrum: Light, Standard, Dark + Monochrome
 let recentColors = [
-    '#ffcccc', '#e10600', '#800000', // Red
-    '#ffe5cc', '#ff8700', '#cc6600', // Orange
-    '#ffffcc', '#ffd500', '#808000', // Yellow
-    '#ccffcc', '#00a19c', '#006600', // Green
-    '#cce5ff', '#007aff', '#000080', // Blue
-    '#e5ccff', '#4b0082', '#29004d', // Indigo
-    '#ffccff', '#ee82ee', '#800080', // Violet
-    '#ffffff', '#808080', '#000000'  // Monochrome
+    '#ffcccc', '#e10600', '#800000', '#ffe5cc', '#ff8700', '#cc6600', 
+    '#ffffcc', '#ffd500', '#808000', '#ccffcc', '#00a19c', '#006600', 
+    '#cce5ff', '#007aff', '#000080', '#e5ccff', '#4b0082', '#29004d', 
+    '#ffccff', '#ee82ee', '#800080', '#ffffff', '#808080', '#000000'
 ];
 
 function renderRecentColors() {
@@ -632,7 +626,7 @@ ui.resetBtn.addEventListener('click', () => {
     });
 });
 
-// --- 6. GLTF Car Asset Loader ---
+// --- 6. GLTF Car Asset Loader with Auto-Scaler & UI Feedback ---
 const loader = new THREE.GLTFLoader();
 const textureLoader = new THREE.TextureLoader();
 
@@ -641,11 +635,37 @@ baseTexture.flipY = false;
 baseTexture.encoding = THREE.sRGBEncoding;
 
 const modelCache = {}; 
+const uiLogoText = document.querySelector('.logo-container'); 
 
 loader.load(
     'scene.gltf', 
     (gltf) => {
+        // 1. Success! Restore logo text
+        if (uiLogoText) {
+            uiLogoText.innerText = '🏎️ F1 LIVERY'; 
+            uiLogoText.style.color = '#e10600'; 
+        }
+
         const carModel = gltf.scene;
+        
+        // 2. AUTO-SCALER: Ensure the model is perfectly sized for the camera
+        const initialBox = new THREE.Box3().setFromObject(carModel);
+        const size = new THREE.Vector3();
+        initialBox.getSize(size);
+        
+        const maxDim = Math.max(size.x, size.y, size.z);
+        if (maxDim > 0) {
+            // Force the car to be 8 units across so it fits in our view
+            const scaleFactor = 8.0 / maxDim; 
+            carModel.scale.setScalar(scaleFactor);
+        }
+        
+        // 3. PERFECT CENTERING: Snap the model to the direct center of the screen
+        const finalBox = new THREE.Box3().setFromObject(carModel);
+        const center = finalBox.getCenter(new THREE.Vector3());
+        carModel.position.sub(center);
+
+        // 4. Assign materials
         carModel.traverse((node) => {
             if (node.isMesh) {
                 node.castShadow = true; node.receiveShadow = true;
@@ -680,19 +700,33 @@ loader.load(
                             roughness: 0.2
                         })
                     );
-                    
                     node.add(paintShell);
                 }
             }
         });
-        const box = new THREE.Box3().setFromObject(carModel);
-        carModel.position.sub(box.getCenter(new THREE.Vector3()));
+        
         scene.add(carModel);
     },
-    undefined,
+    (xhr) => {
+        // UI FEEDBACK: Update the logo text with live download progress
+        if (uiLogoText) {
+            if (xhr.total > 0) {
+                const percent = Math.round((xhr.loaded / xhr.total) * 100);
+                uiLogoText.innerText = `LOADING... ${percent}%`;
+            } else {
+                const mb = (xhr.loaded / 1048576).toFixed(1);
+                uiLogoText.innerText = `LOADING... ${mb}MB`;
+            }
+            uiLogoText.style.color = '#ff8700'; // Papaya Orange while loading
+        }
+    },
     (error) => {
+        // FAILURE: Visually alert the user that a file 404'd
+        if (uiLogoText) {
+            uiLogoText.innerText = '❌ LOAD ERROR';
+            uiLogoText.style.color = '#e10600';
+        }
         console.error('GLTF Load Error:', error);
-        alert("Failed to load 'scene.gltf'. Ensure the file name is exactly 'scene.gltf' (all lowercase) in your GitHub repository. GitHub Pages is case-sensitive!");
     }
 );
 
