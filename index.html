@@ -20,13 +20,14 @@
             padding: 0 15px; box-sizing: border-box; z-index: 50;
         }
         
-        .nav-left { width: 120px; display: flex; align-items: center; } 
-        #loading-text { font-size: 11px; font-weight: bold; letter-spacing: 1px; color: #ff8700; }
+        /* Fixed Flexbox Constraints */
+        .nav-left { width: 120px; display: flex; align-items: center; flex-shrink: 0; } 
+        #loading-text { font-size: 11px; font-weight: bold; letter-spacing: 1px; color: #ff8700; white-space: nowrap; }
 
-        .logo-container { flex-grow: 1; display: flex; justify-content: center; align-items: center; height: 100%; }
-        .logo-container img { max-height: 75%; object-fit: contain; }
+        .logo-container { flex: 1; display: flex; justify-content: center; align-items: center; height: 100%; min-width: 0; overflow: hidden; }
+        .logo-container img { max-height: 75%; max-width: 100%; object-fit: contain; }
         
-        .nav-right { width: 120px; display: flex; gap: 8px; justify-content: flex-end; }
+        .nav-right { width: 120px; display: flex; gap: 8px; justify-content: flex-end; flex-shrink: 0; }
 
         .icon-btn {
             background: #2a2a2a; border: 1px solid #555; border-radius: 8px;
@@ -139,6 +140,16 @@
         }
         #hueSlider::-webkit-slider-thumb {
             -webkit-appearance: none; width: 20px; height: 20px; background: white; border-radius: 50%; cursor: pointer; border: 2px solid #333;
+        }
+
+        /* MOBILE FIXES */
+        @media (max-width: 650px) {
+            .top-navbar { height: 70px; padding: 0 10px; }
+            .nav-left, .nav-right { width: 80px; } 
+            .logo-container img { max-height: 65%; }
+            .icon-btn { width: 32px; height: 32px; font-size: 14px; }
+            #loading-text { font-size: 9px; }
+            #step-toast { top: 125px; }
         }
     </style>
 </head>

@@ -37,18 +37,33 @@ const controls = new THREE.OrbitControls(camera, renderer.domElement);
 controls.enableDamping = true;
 controls.dampingFactor = 0.05;
 
+let activeCamView = 'iso'; 
+
 function getCamDist() { return window.innerWidth < 650 ? 25 : 10; }
 
-// FIXED: Increased the negative offset significantly to push the car high above the UI
-function getCamOffsetY() { return window.innerWidth < 650 ? -5.5 : -3.5; }
+// FIXED: Granular Y-Offset controls per camera perspective!
+function getCamOffsetY(view) { 
+    if (window.innerWidth < 650) return -5.5; // Keep mobile car pushed up above tall UI
+    
+    // Decreasing the negative value moves the target UP, which pushes the car DOWN on screen.
+    switch(view) {
+        case 'free': return -1.5;  // Moved down
+        case 'side': return -1.5;  // Moved down
+        case 'top': return -4.5;   // Moved up 
+        case 'iso': return -1.5;   // Moved down
+        case 'front': return -3.5; // Kept as is
+        case 'back': return -3.5;  // Kept as is
+        default: return -1.5;
+    }
+}
 
-controls.target.set(0, getCamOffsetY(), 0); 
+controls.target.set(0, getCamOffsetY(activeCamView), 0); 
 let sideToggleRight = true; 
 
 function updateCameraTo(view) {
-    if (view === 'free') return;
+    activeCamView = view;
     const d = getCamDist();
-    const yOff = getCamOffsetY();
+    const yOff = getCamOffsetY(view);
     
     let tZ = 0;
     let cZ = 0;
@@ -58,13 +73,12 @@ function updateCameraTo(view) {
         cZ = 5.0;
     }
     
-    // FIXED: Raised the physical camera heights (the Y values) so we maintain a good downward viewing angle
     const views = {
-        side: new THREE.Vector3(sideToggleRight ? d : -d, 3.5, 0),
+        side: new THREE.Vector3(sideToggleRight ? d : -d, 2.0, 0), // Lowered slightly for better angle
         front: new THREE.Vector3(0, 3.5, d),
         back: new THREE.Vector3(0, 3.5, -d),
         top: new THREE.Vector3(0, d * 1.8, cZ),
-        iso: new THREE.Vector3(-d*0.7, 4.0, d*0.7)
+        iso: new THREE.Vector3(-d*0.7, 2.5, d*0.7) // Lowered slightly for better angle
     };
     
     if (views[view]) {
@@ -130,7 +144,6 @@ document.getElementById('decal-visual-picker').addEventListener('wheel', (evt) =
 let currentMode = 'camera'; 
 let activeShape = 'circle'; 
 let activeSize = 3; 
-let activeCamView = 'free';
 let activeDecalType = 'gradient-streak';
 let isPainting = false;
 let isPlacingDecal = false; 
@@ -177,7 +190,7 @@ function setMode(mode) {
     // Toast Prompts based on tool
     if (mode === 'brush') showToast('Brush Mode: Draw directly on the car', 3000);
     else if (mode === 'bucket') showToast('Bucket Mode: Click a part to fill it', 3000);
-    else if (mode === 'decal') showToast('Step 1: Click on the car to place a Decal', 0); // Stays until clicked
+    else if (mode === 'decal') showToast('Step 1: Click on the car to place a Decal', 0);
 
     if (mode === 'decal') {
         setTimeout(() => {
@@ -258,7 +271,7 @@ ui.applyColorBtn.addEventListener('click', () => {
     ui.openMixerBtn.style.background = currentColor; 
     ui.customColorModal.style.display = 'none';
     if (currentMode === 'decal') updateLiveDecalPreview();
-    generateVisualDecalButtons(); // Update thumbnails to new color!
+    generateVisualDecalButtons(); 
 });
 ui.openMixerBtn.style.background = currentColor;
 
@@ -271,15 +284,23 @@ document.querySelectorAll('.size-btn').forEach(btn => {
     });
 });
 
+// FIXED: Cleanly swaps to Orbit target height without breaking tools 
 document.querySelectorAll('.cam-btn').forEach(btn => {
     btn.addEventListener('click', (e) => {
         document.querySelectorAll('.cam-btn').forEach(b => b.classList.remove('active'));
         e.target.classList.add('active');
+        
         const view = e.target.getAttribute('data-cam');
         if (view === 'side' && activeCamView === 'side') sideToggleRight = !sideToggleRight; 
-        activeCamView = view;
-        if (view === 'free') setMode('camera');
-        else updateCameraTo(view);
+        
+        if (view === 'free') {
+            activeCamView = 'free';
+            controls.target.set(0, getCamOffsetY('free'), 0);
+            controls.update();
+            setMode('camera'); 
+        } else {
+            updateCameraTo(view);
+        }
     });
 });
 
@@ -308,7 +329,6 @@ function drawShape(ctx, x, y, size, type, color) {
     const solidColor = `rgba(${r},${g},${b},1)`;
     const clearColor = `rgba(${r},${g},${b},0)`;
 
-    // --- NEW LONG GRADIENT SHAPES ---
     if (type === 'gradient-streak') {
         const grad = ctx.createLinearGradient(-size, 0, size, 0);
         grad.addColorStop(0, solidColor);
@@ -331,9 +351,9 @@ function drawShape(ctx, x, y, size, type, color) {
     else if (type === 'fade-dots-flow') {
         ctx.fillStyle = solidColor;
         for (let i = 0; i < 7; i++) {
-            ctx.globalAlpha = Math.max(0, 1 - (i * 0.14)); // Fades out
+            ctx.globalAlpha = Math.max(0, 1 - (i * 0.14)); 
             const px = -size * 0.8 + (i * size * 0.28);
-            const rCircle = size * 0.25 * (1 - i * 0.08); // Shrinks slightly
+            const rCircle = size * 0.25 * (1 - i * 0.08); 
             ctx.beginPath(); 
             ctx.arc(px, 0, rCircle, 0, Math.PI*2); 
             ctx.fill();
@@ -363,7 +383,6 @@ function drawShape(ctx, x, y, size, type, color) {
         ctx.lineTo(-size, -size/3);
         ctx.fill();
     }
-    // --- EXISTING SHAPES ---
     else if (type === 'solid-stripe') {
         ctx.fillStyle = solidColor;
         ctx.fillRect(-size/2, -size*2, size, size*4);
@@ -542,16 +561,13 @@ function drawShape(ctx, x, y, size, type, color) {
     ctx.restore();
 }
 
-// Automatically generate mini-canvases for the Decal UI Buttons
 function generateVisualDecalButtons() {
     document.querySelectorAll('.decal-btn').forEach(btn => {
         const shape = btn.getAttribute('data-shape');
         const tCanvas = document.createElement('canvas');
         tCanvas.width = 64; tCanvas.height = 64;
         const tCtx = tCanvas.getContext('2d');
-        // Clear background
         tCtx.clearRect(0, 0, 64, 64);
-        // Draw icon shape in current color
         drawShape(tCtx, 32, 32, 22, shape, currentColor);
         
         btn.style.backgroundImage = `url(${tCanvas.toDataURL()})`;
@@ -560,7 +576,6 @@ function generateVisualDecalButtons() {
         btn.style.backgroundPosition = 'center';
     });
 }
-// Run once on init
 generateVisualDecalButtons();
 
 const materialCache = {};
@@ -700,7 +715,7 @@ domCanvas.addEventListener('pointerdown', (e) => {
         liveDecalHitData = { point: hit.point.clone(), normal: hit.face.normal.clone() };
         clearGhosts();
         refreshLivePreview();
-        showToast('Step 2: Now adjust Size and Rotation below', 0); // Guide to sliders
+        showToast('Step 2: Now adjust Size and Rotation below', 0); 
     }
 });
 
@@ -912,7 +927,9 @@ window.addEventListener('resize', () => {
     camera.aspect = window.innerWidth / window.innerHeight; 
     camera.updateProjectionMatrix(); 
     renderer.setSize(window.innerWidth, window.innerHeight);
-    controls.target.set(0, getCamOffsetY(), 0);
+    // FIXED: Keeps the currently active specific offset upon window resize
+    controls.target.set(0, getCamOffsetY(activeCamView), 0);
+    controls.update();
 });
 
 function animate() { 
