@@ -12,7 +12,6 @@
             touch-action: none; overscroll-behavior: none; 
         }
         
-        /* Fixed Isolated Top Banner Bar */
         .top-navbar {
             width: 100%; height: 70px; background: #1a1a1a;
             border-bottom: 1px solid #333; display: flex; 
@@ -22,7 +21,6 @@
         .logo-container { height: 100%; display: flex; align-items: center; flex-grow: 1; justify-content: center; }
         .app-logo { max-width: 80%; height: 45px; object-fit: contain; }
 
-        /* Integrated Nav Header Cogwheel */
         .settings-cog {
             background: #2a2a2a; border: 1px solid #555; border-radius: 50%;
             color: white; font-size: 18px; width: 40px; height: 40px;
@@ -39,7 +37,7 @@
             position: absolute; bottom: 15px; left: 50%; transform: translateX(-50%);
             background: rgba(20, 20, 20, 0.85); border: 1px solid #444; backdrop-filter: blur(10px);
             padding: 12px 15px; border-radius: 12px; 
-            display: flex; flex-wrap: wrap; justify-content: center; gap: 15px; align-items: flex-end; 
+            display: flex; flex-wrap: wrap; justify-content: center; gap: 12px; align-items: flex-end; 
             z-index: 10; width: 95%; max-width: 950px; box-shadow: 0 10px 30px rgba(0,0,0,0.7);
         }
 
@@ -53,19 +51,20 @@
         
         .cam-btn { padding: 6px 8px; font-size: 11px; }
         .size-btn { padding: 6px 10px; font-size: 11px; min-width: 32px; }
-        .sampler-btn { font-size: 14px; padding: 7px 10px; }
-        
-        input[type="color"] { border: none; width: 35px; height: 35px; border-radius: 6px; cursor: pointer; background: none; }
         input[type="range"] { accent-color: #e10600; cursor: pointer; }
 
-        /* Mobile Eyedropper Toast Notification */
-        #toast-notification {
-            position: absolute; top: 85px; left: 50%; transform: translateX(-50%);
-            background: #007aff; color: white; padding: 10px 20px; border-radius: 8px;
-            font-family: sans-serif; font-weight: bold; font-size: 14px;
-            z-index: 100; box-shadow: 0 4px 15px rgba(0,0,0,0.5);
-            display: none; pointer-events: none;
+        /* Custom Color Palette Styles */
+        .color-picker-wrap {
+            display: flex; flex-direction: column; gap: 3px; 
+            background: #2a2a2a; padding: 5px; border-radius: 8px; border: 1px solid #555;
+            max-width: 100%; overflow-x: auto;
         }
+        .color-row { display: flex; gap: 3px; }
+        .color-swatch {
+            width: 20px; height: 20px; border-radius: 4px; border: 2px solid transparent; 
+            cursor: pointer; flex-shrink: 0; box-sizing: border-box;
+        }
+        .color-swatch.active { border-color: white; transform: scale(1.1); box-shadow: 0 0 5px rgba(255,255,255,0.5); }
 
         #helpModal {
             position: fixed; top: 0; left: 0; width: 100vw; height: 100vh;
@@ -89,6 +88,7 @@
             #control-center { padding: 8px; gap: 6px; bottom: 10px; }
             button, select { padding: 6px 8px; font-size: 11px; }
             .cam-btn, .size-btn { padding: 5px 6px; font-size: 10px; }
+            .color-swatch { width: 18px; height: 18px; }
         }
     </style>
 </head>
@@ -102,8 +102,6 @@
         <button id="helpBtn" class="settings-cog" title="Settings & Help">⚙️</button>
     </div>
 
-    <div id="toast-notification">🧪 Tap anywhere on the car to copy color!</div>
-
     <div id="viewport3d"></div>
 
     <div id="helpModal">
@@ -112,7 +110,6 @@
             <ul>
                 <li><strong>🎥 Orbit Mode:</strong> Drag across the screen space with one finger or mouse to rotate around your vehicle.</li>
                 <li><strong>🖌️ Brush Mode:</strong> Select an explicit sizing from Circle or Square presets and slide your finger across panels to draw clean, seamless continuous lines.</li>
-                <li><strong>💉 Eyedropper:</strong> Tap the Eyedropper button to sample a color directly from your car.</li>
                 <li><strong>🪣 Bucket Mode:</strong> Tap over target segments to fill background panels instantly.</li>
                 <li><strong>⭐ Decal Mode:</strong> Drag over the car to position your decal in real-time. Use sliders to resize and rotate, then tap <strong>Stamp Decal</strong> to apply!</li>
                 <li><strong>🪞 Side Mirror:</strong> Set camera directly into <strong>Side</strong> perspective to open mirroring tools to replicate your design perfectly to the opposite side.</li>
@@ -147,9 +144,37 @@
 
         <div class="tool-group">
             <label>Color</label>
-            <div class="btn-row">
-                <input type="color" id="paintColor" value="#e10600">
-                <button id="mode-sampler" class="sampler-btn" title="Eyedropper">💉</button>
+            <div class="color-picker-wrap">
+                <div class="color-row">
+                    <div class="color-swatch" style="background:#ffffff;" data-color="#ffffff"></div>
+                    <div class="color-swatch" style="background:#ffb3ba;" data-color="#ffb3ba"></div>
+                    <div class="color-swatch" style="background:#ffdfba;" data-color="#ffdfba"></div>
+                    <div class="color-swatch" style="background:#ffffba;" data-color="#ffffba"></div>
+                    <div class="color-swatch" style="background:#baffc9;" data-color="#baffc9"></div>
+                    <div class="color-swatch" style="background:#bae1ff;" data-color="#bae1ff"></div>
+                    <div class="color-swatch" style="background:#e3baff;" data-color="#e3baff"></div>
+                    <div class="color-swatch" style="background:#e0e0e0;" data-color="#e0e0e0"></div>
+                </div>
+                <div class="color-row">
+                    <div class="color-swatch active" style="background:#e10600;" data-color="#e10600"></div>
+                    <div class="color-swatch" style="background:#ff0000;" data-color="#ff0000"></div>
+                    <div class="color-swatch" style="background:#ff7f00;" data-color="#ff7f00"></div>
+                    <div class="color-swatch" style="background:#ffff00;" data-color="#ffff00"></div>
+                    <div class="color-swatch" style="background:#00ff00;" data-color="#00ff00"></div>
+                    <div class="color-swatch" style="background:#007aff;" data-color="#007aff"></div>
+                    <div class="color-swatch" style="background:#8a2be2;" data-color="#8a2be2"></div>
+                    <div class="color-swatch" style="background:#888888;" data-color="#888888"></div>
+                </div>
+                <div class="color-row">
+                    <div class="color-swatch" style="background:#000000;" data-color="#000000"></div>
+                    <div class="color-swatch" style="background:#8b0000;" data-color="#8b0000"></div>
+                    <div class="color-swatch" style="background:#cc5500;" data-color="#cc5500"></div>
+                    <div class="color-swatch" style="background:#b8b800;" data-color="#b8b800"></div>
+                    <div class="color-swatch" style="background:#006400;" data-color="#006400"></div>
+                    <div class="color-swatch" style="background:#00008b;" data-color="#00008b"></div>
+                    <div class="color-swatch" style="background:#4b0082;" data-color="#4b0082"></div>
+                    <div class="color-swatch" style="background:#404040;" data-color="#404040"></div>
+                </div>
             </div>
         </div>
 
@@ -177,7 +202,7 @@
             <div class="btn-row">
                 <select id="decalType">
                     <option value="star">⭐ Star</option>
-                    <option value="stripe">⚡ Lightning Stripe</option>
+                    <option value="stripe">⚡ Stripe</option>
                     <option value="circle">⭕ Roundel</option>
                     <option value="checkered">🏁 Checkered</option>
                     <option value="number1">1️⃣ Number 1</option>
@@ -185,21 +210,21 @@
                     <option value="hexagon">⬢ Hexagon</option>
                     <option value="chevron">⏩ Chevron</option>
                     <option value="diamond">♦️ Diamond</option>
-                    <option value="swoosh">🌙 Racing Swoosh</option>
+                    <option value="swoosh">🌙 Swoosh</option>
                     <option value="cross">➕ Cross</option>
                 </select>
                 <input type="range" id="toolSize" min="10" max="500" value="100" style="width: 65px;" title="Scale">
                 <input type="range" id="decalRot" min="0" max="360" value="0" style="width: 65px;" title="Rotation">
-                <button id="commitDecalBtn" style="background: #007aff; border-color: #0056b3;">📌 Stamp Decal</button>
+                <button id="commitDecalBtn" style="background: #007aff; border-color: #0056b3;">📌 Stamp</button>
             </div>
         </div>
 
         <div class="tool-group">
             <label>Actions</label>
             <div class="btn-row">
-                <button id="mirrorBtn" style="background: #222; display: none;">🪞 Mirror Side</button>
+                <button id="mirrorBtn" style="background: #222; display: none;">🪞 Mirror</button>
                 <button id="undoBtn" style="background: #333;">↩️ Undo</button>
-                <button id="resetBtn" style="background: #555;">Reset All</button>
+                <button id="resetBtn" style="background: #555;">Reset</button>
             </div>
         </div>
     </div>

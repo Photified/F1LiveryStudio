@@ -47,13 +47,7 @@ function updateCameraTo(view) {
 }
 updateCameraTo('iso'); 
 
-// --- 2. Advanced Layer & Canvas Framework ---
-const paintCanvas = document.createElement('canvas');
-paintCanvas.width = 2048; paintCanvas.height = 2048;
-const pCtx = paintCanvas.getContext('2d');
-const canvasTexture = new THREE.CanvasTexture(paintCanvas);
-canvasTexture.flipY = false;
-
+// --- 2. Advanced Layer Stacking Framework ---
 const mainDecalGroup = new THREE.Group();
 const mirrorDecalGroup = new THREE.Group();
 scene.add(mainDecalGroup);
@@ -63,6 +57,14 @@ let globalRenderOrder = 1;
 let stampHistory = []; 
 const actionHistory = []; 
 
+// Texture Throttling System (PREVENTS CRASHES)
+const paintCanvas = document.createElement('canvas');
+paintCanvas.width = 2048; paintCanvas.height = 2048;
+const pCtx = paintCanvas.getContext('2d');
+const canvasTexture = new THREE.CanvasTexture(paintCanvas);
+canvasTexture.flipY = false;
+let textureNeedsGPUUpdate = false; 
+
 const baseMapImage = new Image();
 baseMapImage.src = 'textures/Livery_baseColor.png';
 baseMapImage.onload = () => resetToTextureDefaults();
@@ -70,7 +72,7 @@ baseMapImage.onload = () => resetToTextureDefaults();
 function resetToTextureDefaults() {
     pCtx.clearRect(0, 0, 2048, 2048);
     pCtx.drawImage(baseMapImage, 0, 0, 2048, 2048);
-    canvasTexture.needsUpdate = true;
+    textureNeedsGPUUpdate = true;
 }
 
 function saveCanvasState() {
@@ -78,21 +80,20 @@ function saveCanvasState() {
     actionHistory.push({ type: 'canvas', data: pCtx.getImageData(0, 0, 2048, 2048) });
 }
 
-// --- 3. UI & State Management ---
+// --- 3. UI, State, & Handlers ---
 let currentMode = 'camera'; 
 let activeShape = 'circle'; 
 let activeSize = 3; 
 let activeCamView = 'free';
 let isPainting = false;
 let paintableMeshes = []; 
+let currentColor = '#e10600'; 
 let liveDecalHitData = null;
 
 const ui = {
     brush: document.getElementById('mode-brush'),
     bucket: document.getElementById('mode-bucket'),
     decal: document.getElementById('mode-decal'),
-    sampler: document.getElementById('mode-sampler'),
-    color: document.getElementById('paintColor'),
     brushWrap: document.getElementById('brush-presets-wrap'),
     decalWrap: document.getElementById('decal-select-wrap'),
     decalType: document.getElementById('decalType'),
@@ -105,13 +106,12 @@ const ui = {
     helpBtn: document.getElementById('helpBtn'),
     helpModal: document.getElementById('helpModal'),
     closeHelpBtn: document.getElementById('closeHelpBtn'),
-    installAppBtn: document.getElementById('installAppBtn'),
-    toast: document.getElementById('toast-notification')
+    installAppBtn: document.getElementById('installAppBtn')
 };
 
 function setMode(mode) {
     currentMode = mode;
-    ['brush', 'bucket', 'decal', 'sampler'].forEach(m => ui[m]?.classList.remove('active'));
+    ['brush', 'bucket', 'decal'].forEach(m => ui[m]?.classList.remove('active'));
     if (ui[mode]) ui[mode].classList.add('active');
     
     ui.brushWrap.style.display = (mode === 'brush') ? 'flex' : 'none';
@@ -142,16 +142,14 @@ ui.brush.addEventListener('click', () => setMode('brush'));
 ui.bucket.addEventListener('click', () => setMode('bucket'));
 ui.decal.addEventListener('click', () => setMode('decal'));
 
-ui.sampler.addEventListener('click', async () => {
-    if (window.EyeDropper) {
-        try {
-            const result = await new EyeDropper().open();
-            ui.color.value = result.sRGBHex;
-        } catch (e) {}
-    } else {
-        setMode('sampler');
-        if(ui.toast) ui.toast.style.display = 'block';
-    }
+// Custom Palette Logic
+document.querySelectorAll('.color-swatch').forEach(swatch => {
+    swatch.addEventListener('click', (e) => {
+        document.querySelectorAll('.color-swatch').forEach(s => s.classList.remove('active'));
+        e.target.classList.add('active');
+        currentColor = e.target.getAttribute('data-color');
+        if (currentMode === 'decal') updateLiveDecalPreview();
+    });
 });
 
 document.querySelectorAll('.size-btn').forEach(btn => {
@@ -167,6 +165,7 @@ document.querySelectorAll('.cam-btn').forEach(btn => {
     btn.addEventListener('click', (e) => {
         document.querySelectorAll('.cam-btn').forEach(b => b.classList.remove('active'));
         e.target.classList.add('active');
+        
         const view = e.target.getAttribute('data-cam');
         activeCamView = view;
         ui.mirrorBtn.style.display = (view === 'side') ? 'block' : 'none';
@@ -185,11 +184,11 @@ const updateLiveDecalPreview = () => {
 ui.decalType.addEventListener('change', updateLiveDecalPreview);
 ui.decalSize.addEventListener('input', updateLiveDecalPreview);
 ui.decalRot.addEventListener('input', updateLiveDecalPreview);
-ui.color.addEventListener('input', updateLiveDecalPreview);
 
 // --- 4. Geometry and Texture Generators ---
 function drawShape(ctx, x, y, size, type, color) {
     ctx.save(); ctx.fillStyle = color; ctx.translate(x, y);
+
     if (type === 'star') {
         ctx.beginPath();
         for (let i = 0; i < 5; i++) {
@@ -218,8 +217,6 @@ function drawShape(ctx, x, y, size, type, color) {
         ctx.beginPath(); ctx.moveTo(-size, size/2); ctx.quadraticCurveTo(0, -size, size, -size/2); ctx.quadraticCurveTo(size/2, -size/4, -size, size/2); ctx.closePath(); ctx.fill();
     } else if (type === 'cross') {
         const w = size / 3; ctx.fillRect(-w/2, -size, w, size*2); ctx.fillRect(-size, -w/2, size*2, w);
-    } else if (type === 'square') {
-        ctx.fillRect(-size, -size, size*2, size*2);
     }
     ctx.restore();
 }
@@ -260,12 +257,12 @@ function getIntersection(clientX, clientY) {
     return intersects.length > 0 ? intersects[0] : null;
 }
 
-// Optimized 2D UV Painting Function (Crash-Proof Brush)
+// Crash-Proof Brush Function 
 function executeUVBrush(hit) {
     if (!hit.uv) return;
     const x = hit.uv.x * 2048;
     const y = hit.uv.y * 2048;
-    pCtx.fillStyle = ui.color.value;
+    pCtx.fillStyle = currentColor;
     
     if (activeShape === 'circle') {
         pCtx.beginPath();
@@ -277,7 +274,6 @@ function executeUVBrush(hit) {
     }
 }
 
-// 3D Geometry Function (For Decals Only)
 function projectStamp(point, normal, rotation, size, shape, color, zIndex, isPreview = false, isMirrored = false) {
     const dummy = new THREE.Object3D();
     dummy.position.copy(point);
@@ -324,7 +320,7 @@ function refreshLivePreview() {
     if (!liveDecalHitData) return;
     const rotVal = parseInt(ui.decalRot.value);
     const sizeVal = parseInt(ui.decalSize.value) / 100;
-    projectStamp(liveDecalHitData.point, liveDecalHitData.normal, rotVal, sizeVal, ui.decalType.value, ui.color.value, globalRenderOrder + 50, true);
+    projectStamp(liveDecalHitData.point, liveDecalHitData.normal, rotVal, sizeVal, ui.decalType.value, currentColor, globalRenderOrder + 50, true);
 }
 
 // --- Interaction Core (Smooth Lines & Taps) ---
@@ -341,21 +337,12 @@ domCanvas.addEventListener('pointerdown', (e) => {
     const hit = getIntersection(e.clientX, e.clientY);
     if (!hit) return;
 
-    if (currentMode === 'sampler') {
-        if (hit.object && hit.object.material && hit.object.material.color) {
-            ui.color.value = "#" + hit.object.material.color.getHexString();
-            if(ui.toast) ui.toast.style.display = 'none';
-            setMode('camera'); 
-        }
-        return;
-    }
-
     if (currentMode === 'brush') {
         controls.enabled = false; 
         isPainting = true;
         saveCanvasState();
         executeUVBrush(hit);
-        canvasTexture.needsUpdate = true;
+        textureNeedsGPUUpdate = true; // Batches the upload to prevent crashes
     } else if (currentMode === 'decal') {
         controls.enabled = false; 
         liveDecalHitData = { point: hit.point.clone(), normal: hit.face.normal.clone() };
@@ -370,9 +357,9 @@ domCanvas.addEventListener('pointermove', (e) => {
     if (touchStartPos.distanceTo(currentPos) > 8) gestureMoved = true;
 
     if (currentMode === 'brush' && isPainting) {
-        // Screen-Space Interpolation Engine for Perfectly Smooth Brush Lines
+        // High-Speed Math Engine: Instantly fills dots between fast finger swipes
         const dist = lastScreenPos.distanceTo(currentPos);
-        const steps = Math.max(1, Math.floor(dist / 3)); // Raycast every 3 screen pixels skipped
+        const steps = Math.max(1, Math.floor(dist / 3)); 
 
         for (let i = 1; i <= steps; i++) {
             const t = i / steps;
@@ -382,7 +369,7 @@ domCanvas.addEventListener('pointermove', (e) => {
             const hit = getIntersection(lerpX, lerpY);
             if (hit) executeUVBrush(hit);
         }
-        canvasTexture.needsUpdate = true;
+        textureNeedsGPUUpdate = true; // Safe, background buffering.
         lastScreenPos.copy(currentPos);
 
     } else if (currentMode === 'decal' && liveDecalHitData) {
@@ -406,7 +393,7 @@ domCanvas.addEventListener('pointerup', (e) => {
         const hit = getIntersection(e.clientX, e.clientY);
         if (hit) {
             actionHistory.push({ type: 'bucket', mesh: hit.object, oldColor: hit.object.material.color.getHex() });
-            hit.object.material.color.set(ui.color.value);
+            hit.object.material.color.set(currentColor);
         }
     }
 });
@@ -417,8 +404,8 @@ ui.commitDecalBtn.addEventListener('click', () => {
         const sizeVal = parseInt(ui.decalSize.value) / 100;
         const targetShape = ui.decalType.value;
 
-        const meshes = projectStamp(liveDecalHitData.point, liveDecalHitData.normal, rotVal, sizeVal, targetShape, ui.color.value, globalRenderOrder, false, false);
-        stampHistory.push({ point: liveDecalHitData.point.clone(), normal: liveDecalHitData.normal.clone(), rot: rotVal, size: sizeVal, shape: targetShape, color: ui.color.value, zIndex: globalRenderOrder });
+        const meshes = projectStamp(liveDecalHitData.point, liveDecalHitData.normal, rotVal, sizeVal, targetShape, currentColor, globalRenderOrder, false, false);
+        stampHistory.push({ point: liveDecalHitData.point.clone(), normal: liveDecalHitData.normal.clone(), rot: rotVal, size: sizeVal, shape: targetShape, color: currentColor, zIndex: globalRenderOrder });
         
         actionHistory.push({ type: 'decal', meshes: meshes });
         globalRenderOrder++; 
@@ -449,7 +436,7 @@ ui.mirrorBtn.addEventListener('click', () => {
         }
     }
     pCtx.putImageData(rightSide, halfWidth, 0);
-    canvasTexture.needsUpdate = true;
+    textureNeedsGPUUpdate = true;
 
     // 2. Mirror 3D Decal Meshes
     while(mirrorDecalGroup.children.length > 0) {
@@ -469,7 +456,7 @@ ui.undoBtn.addEventListener('click', () => {
         const lastAction = actionHistory.pop();
         if (lastAction.type === 'canvas') {
             pCtx.putImageData(lastAction.data, 0, 0);
-            canvasTexture.needsUpdate = true;
+            textureNeedsGPUUpdate = true;
         } else if (lastAction.type === 'bucket') {
             lastAction.mesh.material.color.setHex(lastAction.oldColor);
         } else if (lastAction.type === 'decal') {
@@ -477,7 +464,7 @@ ui.undoBtn.addEventListener('click', () => {
                 mesh.geometry.dispose();
                 if (mesh.parent) mesh.parent.remove(mesh);
             });
-            stampHistory.pop(); // Remove from mirror history
+            stampHistory.pop(); 
         }
     }
 });
@@ -532,9 +519,22 @@ loader.load('scene.gltf', (gltf) => {
     scene.add(carModel);
 });
 
-// --- 7. Animation Loop ---
+// --- 7. Animation Loop (TEXTURE THROTTLER) ---
 window.addEventListener('resize', () => {
     camera.aspect = window.innerWidth / window.innerHeight; camera.updateProjectionMatrix(); renderer.setSize(window.innerWidth, window.innerHeight);
 });
-function animate() { requestAnimationFrame(animate); if (controls.enabled) controls.update(); renderer.render(scene, camera); }
+
+function animate() { 
+    requestAnimationFrame(animate); 
+    if (controls.enabled) controls.update(); 
+    
+    // Limits the heavy GPU texture upload to a maximum of 60 times a second.
+    // This entirely prevents the memory crash when brushing on mobile.
+    if (textureNeedsGPUUpdate) {
+        canvasTexture.needsUpdate = true;
+        textureNeedsGPUUpdate = false;
+    }
+    
+    renderer.render(scene, camera); 
+}
 animate();
