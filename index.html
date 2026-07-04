@@ -121,7 +121,6 @@
         .slider-group input[type="range"] {
             width: 100%;
         }
-        /* Rainbow track for the Hue slider */
         #hueSlider {
             background: linear-gradient(to right, #ff0000, #ffff00, #00ff00, #00ffff, #0000ff, #ff00ff, #ff0000);
             -webkit-appearance: none; height: 8px; border-radius: 4px; outline: none;
@@ -165,7 +164,7 @@
                 <li><strong>🎥 Orbit Mode:</strong> Drag around screen space with one finger/mouse to rotate smoothly.</li>
                 <li><strong>🖌️ Brush Mode:</strong> Select an explicit sizing from Circle or Square presets and slide your finger across panels to draw clean continuous lines.</li>
                 <li><strong>🪣 Bucket Mode:</strong> Tap over target segments to fill background panels instantly.</li>
-                <li><strong>⭐ Decal Mode:</strong> Swipe through the graphical options, drag over the car to position, and <strong>Double-Tap to Stamp!</strong></li>
+                <li><strong>⭐ Decal Mode:</strong> Drag over the car to position the preview, fine-tune with the sliders, and tap <strong>✅ APPLY DECAL</strong> to lock it in!</li>
                 <li><strong>👀 Side Camera:</strong> Double tap the <strong>Side</strong> perspective button to quickly swap between the left and right sides of the car.</li>
             </ul>
             <button id="installAppBtn">📲 Install Web App</button>
@@ -251,6 +250,7 @@
                     <input type="range" id="decalRot" min="0" max="360" value="0" style="width: 110px;">
                 </div>
             </div>
+            <button id="commitDecalBtn" style="width: 100%; margin-top: 15px; padding: 12px; font-size: 14px; font-weight: bold; background: #e10600; border: none; color: white; border-radius: 8px; cursor: pointer; text-transform: uppercase; letter-spacing: 1px; box-shadow: 0 4px 10px rgba(225, 6, 0, 0.4);">✅ Apply Decal Here</button>
         </div>
 
         <div class="tool-group">

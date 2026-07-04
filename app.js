@@ -112,6 +112,7 @@ const ui = {
     decalWrap: document.getElementById('decal-select-wrap'),
     decalRot: document.getElementById('decalRot'),
     decalSize: document.getElementById('toolSize'),
+    commitDecalBtn: document.getElementById('commitDecalBtn'),
     undoBtn: document.getElementById('undoBtn'),
     resetBtn: document.getElementById('resetBtn'),
     helpBtn: document.getElementById('helpBtn'),
@@ -184,9 +185,8 @@ document.querySelectorAll('.decal-btn').forEach(btn => {
 });
 
 // --- Custom Color Mixer Logic ---
-let tempColor = '#e10600'; // Stores color while sliding before applying
+let tempColor = '#e10600'; 
 
-// HSL to Hex Converter Formula
 function hslToHex(h, s, l) {
     l /= 100;
     const a = s * Math.min(l, 1 - l) / 100;
@@ -198,7 +198,6 @@ function hslToHex(h, s, l) {
     return `#${f(0)}${f(8)}${f(4)}`;
 }
 
-// Update the preview box while dragging sliders
 function updateMixerPreview() {
     const h = ui.hueSlider.value;
     const s = ui.satSlider.value;
@@ -211,28 +210,17 @@ ui.hueSlider.addEventListener('input', updateMixerPreview);
 ui.satSlider.addEventListener('input', updateMixerPreview);
 ui.litSlider.addEventListener('input', updateMixerPreview);
 
-// Open Modal
-ui.openMixerBtn.addEventListener('click', () => {
-    ui.customColorModal.style.display = 'flex';
-});
+ui.openMixerBtn.addEventListener('click', () => ui.customColorModal.style.display = 'flex');
+ui.cancelColorBtn.addEventListener('click', () => ui.customColorModal.style.display = 'none');
 
-// Close without saving
-ui.cancelColorBtn.addEventListener('click', () => {
-    ui.customColorModal.style.display = 'none';
-});
-
-// Apply the paint
 ui.applyColorBtn.addEventListener('click', () => {
     currentColor = tempColor;
-    ui.openMixerBtn.style.background = currentColor; // Update the wheel button color to show active
+    ui.openMixerBtn.style.background = currentColor; 
     ui.customColorModal.style.display = 'none';
-    
     if (currentMode === 'decal') updateLiveDecalPreview();
 });
 
-// Set initial wheel button color on load
 ui.openMixerBtn.style.background = currentColor;
-
 
 document.querySelectorAll('.size-btn').forEach(btn => {
     btn.addEventListener('click', (e) => {
@@ -249,12 +237,9 @@ document.querySelectorAll('.cam-btn').forEach(btn => {
         e.target.classList.add('active');
         
         const view = e.target.getAttribute('data-cam');
-        if (view === 'side' && activeCamView === 'side') {
-            sideToggleRight = !sideToggleRight; 
-        }
+        if (view === 'side' && activeCamView === 'side') sideToggleRight = !sideToggleRight; 
         
         activeCamView = view;
-        
         if (view === 'free') setMode('camera');
         else updateCameraTo(view);
     });
@@ -269,7 +254,7 @@ const updateLiveDecalPreview = () => {
 ui.decalSize.addEventListener('input', updateLiveDecalPreview);
 ui.decalRot.addEventListener('input', updateLiveDecalPreview);
 
-// --- 4. Geometry and Texture Generators (F1 STYLE) ---
+// --- 4. Geometry and Texture Generators ---
 function drawShape(ctx, x, y, size, type, color) {
     ctx.save(); 
     ctx.translate(x, y);
@@ -452,7 +437,6 @@ function getIntersection(clientX, clientY) {
 
 function executeUVBrush(hit) {
     if (!hit.uv) return;
-
     const x = hit.uv.x * 2048;
     const y = hit.uv.y * 2048;
     pCtx.fillStyle = currentColor;
@@ -495,9 +479,7 @@ function projectStamp(point, normal, rotation, size, shape, color, zIndex, isPre
     });
 
     const targetGroup = isPreview ? ghostDecalGroup : mainDecalGroup;
-    meshes.forEach(m => {
-        targetGroup.add(m);
-    });
+    meshes.forEach(m => targetGroup.add(m));
     return meshes; 
 }
 
@@ -513,15 +495,13 @@ function refreshLivePreview() {
     if (!liveDecalHitData) return;
     const rotVal = parseInt(ui.decalRot.value);
     const sizeVal = parseInt(ui.decalSize.value) / 100;
-    
     projectStamp(liveDecalHitData.point, liveDecalHitData.normal, rotVal, sizeVal, activeDecalType, currentColor, globalRenderOrder + 50, true);
 }
 
-// --- Interaction Core (Smooth Lines & Taps) ---
+// --- Interaction Core (Smooth Lines & Button Stamps) ---
 let touchStartPos = new THREE.Vector2();
 let lastScreenPos = new THREE.Vector2();
 let gestureMoved = false;
-let lastTapTime = 0; 
 
 domCanvas.addEventListener('pointerdown', (e) => {
     if (!e.isPrimary || e.target.closest('#control-center') || e.target.closest('.top-navbar') || e.target.closest('.camera-navbar') || e.target.closest('#customColorModal')) return;
@@ -559,7 +539,6 @@ domCanvas.addEventListener('pointermove', (e) => {
             const t = i / steps;
             const lerpX = lastScreenPos.x + (currentPos.x - lastScreenPos.x) * t;
             const lerpY = lastScreenPos.y + (currentPos.y - lastScreenPos.y) * t;
-            
             const hit = getIntersection(lerpX, lerpY);
             if (hit) executeUVBrush(hit);
         }
@@ -580,29 +559,31 @@ domCanvas.addEventListener('pointerup', (e) => {
     if (!e.isPrimary) return;
     isPainting = false;
     controls.enabled = (currentMode !== 'brush' && currentMode !== 'decal'); 
-    
     if (currentMode === 'decal') controls.enabled = true; 
 
-    const currentTime = Date.now();
-    const isDoubleTap = (currentTime - lastTapTime) < 300;
-    lastTapTime = currentTime;
-
-    if (isDoubleTap && currentMode === 'decal' && liveDecalHitData && !gestureMoved) {
-        const rotVal = parseInt(ui.decalRot.value);
-        const sizeVal = parseInt(ui.decalSize.value) / 100;
-
-        const meshes = projectStamp(liveDecalHitData.point, liveDecalHitData.normal, rotVal, sizeVal, activeDecalType, currentColor, globalRenderOrder, false);
-        stampHistory.push({ point: liveDecalHitData.point.clone(), normal: liveDecalHitData.normal.clone(), rot: rotVal, size: sizeVal, shape: activeDecalType, color: currentColor, zIndex: globalRenderOrder });
-        
-        actionHistory.push({ type: 'decal', meshes: meshes });
-        globalRenderOrder++; 
-    } 
-    else if (!gestureMoved && currentMode === 'bucket') {
+    if (!gestureMoved && currentMode === 'bucket') {
         const hit = getIntersection(e.clientX, e.clientY);
         if (hit) {
             actionHistory.push({ type: 'bucket', mesh: hit.object, oldColor: hit.object.material.color.getHex() });
             hit.object.material.color.set(currentColor);
         }
+    }
+});
+
+// Explicit Button Decal Application
+ui.commitDecalBtn.addEventListener('click', () => {
+    if (currentMode === 'decal' && liveDecalHitData) {
+        const rotVal = parseInt(ui.decalRot.value);
+        const sizeVal = parseInt(ui.decalSize.value) / 100;
+        
+        const meshes = projectStamp(liveDecalHitData.point, liveDecalHitData.normal, rotVal, sizeVal, activeDecalType, currentColor, globalRenderOrder, false);
+        stampHistory.push({ point: liveDecalHitData.point.clone(), normal: liveDecalHitData.normal.clone(), rot: rotVal, size: sizeVal, shape: activeDecalType, color: currentColor, zIndex: globalRenderOrder });
+        
+        actionHistory.push({ type: 'decal', meshes: meshes });
+        globalRenderOrder++; 
+        
+        clearGhosts();
+        liveDecalHitData = null; 
     }
 });
 
@@ -674,7 +655,6 @@ loader.load(
         const center = finalBox.getCenter(new THREE.Vector3());
         carModel.position.sub(center);
 
-        // FIX: Collect meshes FIRST to prevent the infinite Stack Overflow loop
         const targetMeshes = [];
         carModel.traverse((node) => {
             if (node.isMesh) {
@@ -682,7 +662,6 @@ loader.load(
             }
         });
 
-        // Now loop through our safe list and apply the paint shells
         targetMeshes.forEach((node) => {
             node.castShadow = true; 
             node.receiveShadow = true;
