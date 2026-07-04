@@ -41,18 +41,15 @@ let activeCamView = 'iso';
 
 function getCamDist() { return window.innerWidth < 650 ? 25 : 10; }
 
-// FIXED: Granular Y-Offset controls per camera perspective!
 function getCamOffsetY(view) { 
     if (window.innerWidth < 650) return -5.5; // Keep mobile car pushed up above tall UI
     
-    // Decreasing the negative value moves the target UP, which pushes the car DOWN on screen.
     switch(view) {
-        case 'free': return -1.5;  // Moved down
-        case 'side': return -1.5;  // Moved down
-        case 'top': return -4.5;   // Moved up 
-        case 'iso': return -1.5;   // Moved down
-        case 'front': return -3.5; // Kept as is
-        case 'back': return -3.5;  // Kept as is
+        case 'side': return -1.5;  
+        case 'top': return -4.5;   
+        case 'iso': return -1.5;   
+        case 'front': return -3.5; 
+        case 'back': return -3.5;  
         default: return -1.5;
     }
 }
@@ -74,11 +71,11 @@ function updateCameraTo(view) {
     }
     
     const views = {
-        side: new THREE.Vector3(sideToggleRight ? d : -d, 2.0, 0), // Lowered slightly for better angle
+        side: new THREE.Vector3(sideToggleRight ? d : -d, 2.0, 0),
         front: new THREE.Vector3(0, 3.5, d),
         back: new THREE.Vector3(0, 3.5, -d),
         top: new THREE.Vector3(0, d * 1.8, cZ),
-        iso: new THREE.Vector3(-d*0.7, 2.5, d*0.7) // Lowered slightly for better angle
+        iso: new THREE.Vector3(-d*0.7, 2.5, d*0.7) 
     };
     
     if (views[view]) {
@@ -284,7 +281,6 @@ document.querySelectorAll('.size-btn').forEach(btn => {
     });
 });
 
-// FIXED: Cleanly swaps to Orbit target height without breaking tools 
 document.querySelectorAll('.cam-btn').forEach(btn => {
     btn.addEventListener('click', (e) => {
         document.querySelectorAll('.cam-btn').forEach(b => b.classList.remove('active'));
@@ -293,14 +289,7 @@ document.querySelectorAll('.cam-btn').forEach(btn => {
         const view = e.target.getAttribute('data-cam');
         if (view === 'side' && activeCamView === 'side') sideToggleRight = !sideToggleRight; 
         
-        if (view === 'free') {
-            activeCamView = 'free';
-            controls.target.set(0, getCamOffsetY('free'), 0);
-            controls.update();
-            setMode('camera'); 
-        } else {
-            updateCameraTo(view);
-        }
+        updateCameraTo(view);
     });
 });
 
@@ -927,7 +916,6 @@ window.addEventListener('resize', () => {
     camera.aspect = window.innerWidth / window.innerHeight; 
     camera.updateProjectionMatrix(); 
     renderer.setSize(window.innerWidth, window.innerHeight);
-    // FIXED: Keeps the currently active specific offset upon window resize
     controls.target.set(0, getCamOffsetY(activeCamView), 0);
     controls.update();
 });
