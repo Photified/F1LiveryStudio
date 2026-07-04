@@ -8,6 +8,10 @@ const renderer = new THREE.WebGLRenderer({ antialias: true, alpha: true });
 renderer.setSize(window.innerWidth, window.innerHeight);
 renderer.setPixelRatio(Math.min(window.devicePixelRatio, 2));
 renderer.shadowMap.enabled = true;
+
+// FIX: Force sRGB color encoding so hex colors match the UI exactly
+renderer.outputEncoding = THREE.sRGBEncoding; 
+
 container.appendChild(renderer.domElement);
 
 scene.add(new THREE.AmbientLight(0xffffff, 0.7));
@@ -41,7 +45,6 @@ function updateCameraTo(view) {
     let tZ = 0;
     let cZ = 0;
     
-    // Adjusted from 6.5 down to 5.0 for perfect top-down framing
     if (view === 'top' && window.innerWidth < 650) {
         tZ = 5.0;
         cZ = 5.0;
@@ -66,7 +69,7 @@ updateCameraTo('iso');
 // --- 2. Advanced Layer Stacking Framework ---
 const mainDecalGroup = new THREE.Group();
 const mirrorDecalGroup = new THREE.Group();
-const ghostDecalGroup = new THREE.Group(); // Handles real-time floating preview
+const ghostDecalGroup = new THREE.Group(); 
 
 scene.add(mainDecalGroup);
 scene.add(mirrorDecalGroup);
@@ -76,12 +79,15 @@ let globalRenderOrder = 1;
 let stampHistory = []; 
 const actionHistory = []; 
 
-// Texture Throttling System (PREVENTS CRASHES)
+// Texture Throttling System 
 const paintCanvas = document.createElement('canvas');
 paintCanvas.width = 2048; paintCanvas.height = 2048;
 const pCtx = paintCanvas.getContext('2d');
 const canvasTexture = new THREE.CanvasTexture(paintCanvas);
 canvasTexture.flipY = false;
+
+// FIX: Ensure the main canvas texture respects the sRGB true colors
+canvasTexture.encoding = THREE.sRGBEncoding; 
 let textureNeedsGPUUpdate = false; 
 
 const baseMapImage = new Image();
@@ -139,7 +145,6 @@ function setMode(mode) {
     clearGhosts();
     controls.enabled = (mode !== 'brush'); 
     
-    // Auto-spawn a preview in the center of the screen so sliders work immediately
     if (mode === 'decal') {
         setTimeout(() => {
             const hit = getIntersection(window.innerWidth / 2, window.innerHeight / 2);
@@ -174,7 +179,6 @@ ui.brush.addEventListener('click', () => setMode('brush'));
 ui.bucket.addEventListener('click', () => setMode('bucket'));
 ui.decal.addEventListener('click', () => setMode('decal'));
 
-// Custom Palette Logic
 document.querySelectorAll('.color-swatch').forEach(swatch => {
     swatch.addEventListener('click', (e) => {
         document.querySelectorAll('.color-swatch').forEach(s => s.classList.remove('active'));
@@ -199,8 +203,6 @@ document.querySelectorAll('.cam-btn').forEach(btn => {
         e.target.classList.add('active');
         
         const view = e.target.getAttribute('data-cam');
-        
-        // Double tapping side toggles between left and right sides
         if (view === 'side' && activeCamView === 'side') {
             sideToggleRight = !sideToggleRight; 
         }
@@ -272,6 +274,9 @@ function getDecalMaterial(type, color) {
 
     const texture = new THREE.CanvasTexture(dCanvas);
     texture.anisotropy = renderer.capabilities.getMaxAnisotropy();
+    
+    // FIX: Decals need to respect sRGB encoding too
+    texture.encoding = THREE.sRGBEncoding;
 
     const mat = new THREE.MeshStandardMaterial({
         map: texture, transparent: true, depthTest: true, depthWrite: false, 
@@ -299,6 +304,13 @@ function getIntersection(clientX, clientY) {
 
 function executeUVBrush(hit) {
     if (!hit.uv) return;
+    
+    // FIX: If the user brushes over a panel they previously bucket-filled, 
+    // force the underlying material color back to white so the brush color isn't multiplied/muddied!
+    if (hit.object && hit.object.material && hit.object.material.color.getHex() !== 0xffffff) {
+        hit.object.material.color.setHex(0xffffff);
+    }
+
     const x = hit.uv.x * 2048;
     const y = hit.uv.y * 2048;
     pCtx.fillStyle = currentColor;
@@ -365,7 +377,6 @@ function refreshLivePreview() {
 let touchStartPos = new THREE.Vector2();
 let lastScreenPos = new THREE.Vector2();
 let gestureMoved = false;
-let currentStrokeMeshes = [];
 
 domCanvas.addEventListener('pointerdown', (e) => {
     if (!e.isPrimary || e.target.closest('#control-center') || e.target.closest('.top-navbar') || e.target.closest('.camera-navbar')) return;
@@ -461,7 +472,6 @@ ui.mirrorBtn.addEventListener('click', () => {
     const sourceIsRight = camera.position.x > 0;
     const fullData = pCtx.getImageData(0, 0, 2048, 2048);
     
-    // 1. Mirror Canvas Painting Correctly (Source to Target Side)
     for (let y = 0; y < 2048; y++) {
         for (let x = 0; x < 1024; x++) {
             const leftIdx = (y * 2048 + x) * 4;
@@ -483,7 +493,6 @@ ui.mirrorBtn.addEventListener('click', () => {
     pCtx.putImageData(fullData, 0, 0);
     textureNeedsGPUUpdate = true;
 
-    // 2. Mirror Decals (Only copy from the camera-facing side)
     while(mirrorDecalGroup.children.length > 0) {
         const child = mirrorDecalGroup.children[0];
         child.geometry.dispose();
@@ -497,7 +506,6 @@ ui.mirrorBtn.addEventListener('click', () => {
         }
     });
     
-    // 3. Mirror Bucket Colors (Matches symmetrical meshes)
     paintableMeshes.forEach(srcMesh => {
         if (!srcMesh.geometry.boundingBox) srcMesh.geometry.computeBoundingBox();
         const center = srcMesh.geometry.boundingBox.getCenter(new THREE.Vector3());
