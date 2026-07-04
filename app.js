@@ -36,18 +36,28 @@ function updateCameraTo(view) {
     const d = getCamDist();
     const yOff = getCamOffsetY();
     
+    let tZ = 0;
+    let cZ = 0;
+    
+    // Specifically push the Top View camera backwards along the Z-axis on mobile
+    // This physically shifts the car UP towards the top of the phone screen
+    if (view === 'top' && window.innerWidth < 650) {
+        tZ = 3.5;
+        cZ = 3.5;
+    }
+    
     // Elevated height properties (2.5 - 3.0) clear the floor pans cleanly when looking downward
     const views = {
         side: new THREE.Vector3(d, 2.5, 0),
         front: new THREE.Vector3(0, 2.5, d),
         back: new THREE.Vector3(0, 2.5, -d),
-        top: new THREE.Vector3(0, d, 0),
+        top: new THREE.Vector3(0, d, cZ),
         iso: new THREE.Vector3(-d*0.7, 3.0, d*0.7)
     };
     if (views[view]) {
         camera.position.copy(views[view]);
-        camera.lookAt(0, yOff, 0);
-        controls.target.set(0, yOff, 0);
+        camera.lookAt(0, yOff, tZ);
+        controls.target.set(0, yOff, tZ);
         controls.update();
     }
 }
@@ -56,8 +66,11 @@ updateCameraTo('iso');
 // --- 2. Advanced Layer Stacking Framework ---
 const mainDecalGroup = new THREE.Group();
 const mirrorDecalGroup = new THREE.Group();
+const ghostDecalGroup = new THREE.Group(); // Handles real-time floating preview
+
 scene.add(mainDecalGroup);
 scene.add(mirrorDecalGroup);
+scene.add(ghostDecalGroup);
 
 let globalRenderOrder = 1; 
 let stampHistory = []; 
@@ -223,6 +236,8 @@ function drawShape(ctx, x, y, size, type, color) {
         ctx.beginPath(); ctx.moveTo(-size, size/2); ctx.quadraticCurveTo(0, -size, size, -size/2); ctx.quadraticCurveTo(size/2, -size/4, -size, size/2); ctx.closePath(); ctx.fill();
     } else if (type === 'cross') {
         const w = size / 3; ctx.fillRect(-w/2, -size, w, size*2); ctx.fillRect(-size, -w/2, size*2, w);
+    } else if (type === 'square') {
+        ctx.fillRect(-size, -size, size*2, size*2);
     }
     ctx.restore();
 }
@@ -304,21 +319,20 @@ function projectStamp(point, normal, rotation, size, shape, color, zIndex, isPre
         }
     });
 
-    const targetGroup = isPreview ? activeGhostMeshes : (isMirrored ? mirrorDecalGroup : mainDecalGroup);
+    // FIXED: Properly routes the mesh to the dedicated preview group
+    const targetGroup = isPreview ? ghostDecalGroup : (isMirrored ? mirrorDecalGroup : mainDecalGroup);
     meshes.forEach(m => {
-        if (isPreview) activeGhostMeshes.push(m);
         targetGroup.add(m);
     });
     return meshes; 
 }
 
-let activeGhostMeshes = [];
 function clearGhosts() {
-    activeGhostMeshes.forEach(mesh => {
-        if (mesh.parent) mesh.parent.remove(mesh);
-        mesh.geometry.dispose();
-    });
-    activeGhostMeshes.length = 0;
+    while(ghostDecalGroup.children.length > 0) {
+        const child = ghostDecalGroup.children[0];
+        child.geometry.dispose();
+        ghostDecalGroup.remove(child);
+    }
 }
 
 function refreshLivePreview() {
@@ -332,6 +346,7 @@ function refreshLivePreview() {
 let touchStartPos = new THREE.Vector2();
 let lastScreenPos = new THREE.Vector2();
 let gestureMoved = false;
+let currentStrokeMeshes = [];
 
 domCanvas.addEventListener('pointerdown', (e) => {
     if (!e.isPrimary || e.target.closest('#control-center') || e.target.closest('.top-navbar') || e.target.closest('.camera-navbar')) return;
