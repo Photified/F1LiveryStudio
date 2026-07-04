@@ -1,17 +1,16 @@
 {
-  "name": "F1 Livery Design Studio",
-  "short_name": "F1 Paint",
-  "description": "An interactive application to paint and design custom Formula 1 liveries.",
-  "start_url": "./index.html",
+  "name": "F1 Livery Studio Pro",
+  "short_name": "Livery Pro",
+  "start_url": ".",
   "display": "standalone",
   "background_color": "#121212",
-  "theme_color": "#1a1a1a",
-  "orientation": "landscape",
+  "theme_color": "#e10600",
+  "description": "Design and paint custom 3D F1 liveries on the go.",
   "icons": [
     {
-      "src": "https://cdn-icons-png.flaticon.com/512/744/744465.png",
-      "sizes": "512x512",
-      "type": "image/png",
+      "src": "data:image/svg+xml,<svg xmlns=%22http://www.w3.org/2000/svg%22 viewBox=%220 0 100 100%22><text y=%22.9em%22 font-size=%2290%22>🏎️</text></svg>",
+      "sizes": "any",
+      "type": "image/svg+xml",
       "purpose": "any maskable"
     }
   ]
