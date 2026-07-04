@@ -118,8 +118,7 @@ const ui = {
     helpModal: document.getElementById('helpModal'),
     closeHelpBtn: document.getElementById('closeHelpBtn'),
     installAppBtn: document.getElementById('installAppBtn'),
-    nativeColorPicker: document.getElementById('nativeColorPicker'),
-    recentColorsWrap: document.getElementById('recent-colors')
+    nativeColorPicker: document.getElementById('nativeColorPicker')
 };
 
 function setMode(mode) {
@@ -177,49 +176,11 @@ document.querySelectorAll('.decal-btn').forEach(btn => {
     });
 });
 
-ui.recentColorsWrap.style.flexWrap = 'wrap';
-ui.recentColorsWrap.style.justifyContent = 'center';
-ui.recentColorsWrap.style.padding = '4px 0';
-ui.recentColorsWrap.style.maxHeight = '90px';
-ui.recentColorsWrap.style.overflowY = 'auto';
-
-let recentColors = [
-    '#ffcccc', '#e10600', '#800000', '#ffe5cc', '#ff8700', '#cc6600', 
-    '#ffffcc', '#ffd500', '#808000', '#ccffcc', '#00a19c', '#006600', 
-    '#cce5ff', '#007aff', '#000080', '#e5ccff', '#4b0082', '#29004d', 
-    '#ffccff', '#ee82ee', '#800080', '#ffffff', '#808080', '#000000'
-];
-
-function renderRecentColors() {
-    ui.recentColorsWrap.innerHTML = '';
-    recentColors.forEach(c => {
-        const swatch = document.createElement('div');
-        swatch.className = 'color-swatch' + (c === currentColor ? ' active' : '');
-        swatch.style.background = c;
-        swatch.setAttribute('data-color', c);
-        swatch.addEventListener('click', () => {
-            currentColor = c;
-            ui.nativeColorPicker.value = c;
-            renderRecentColors();
-            if (currentMode === 'decal') updateLiveDecalPreview();
-        });
-        ui.recentColorsWrap.appendChild(swatch);
-    });
-}
-
+// Color Wheel Handler (Simplified)
 ui.nativeColorPicker.addEventListener('input', (e) => {
     currentColor = e.target.value;
     if (currentMode === 'decal') updateLiveDecalPreview();
 });
-
-ui.nativeColorPicker.addEventListener('change', () => {
-    if (!recentColors.includes(currentColor)) {
-        recentColors.unshift(currentColor);
-        if (recentColors.length > 36) recentColors.pop(); 
-        renderRecentColors();
-    }
-});
-renderRecentColors(); 
 
 document.querySelectorAll('.size-btn').forEach(btn => {
     btn.addEventListener('click', (e) => {
@@ -626,7 +587,7 @@ ui.resetBtn.addEventListener('click', () => {
     });
 });
 
-// --- 6. GLTF Car Asset Loader with Auto-Scaler & UI Feedback ---
+// --- 6. GLTF Car Asset Loader with Auto-Scaler & Loop Fix ---
 const loader = new THREE.GLTFLoader();
 const textureLoader = new THREE.TextureLoader();
 
@@ -640,7 +601,6 @@ const uiLogoText = document.querySelector('.logo-container');
 loader.load(
     'scene.gltf', 
     (gltf) => {
-        // 1. Success! Restore logo text
         if (uiLogoText) {
             uiLogoText.innerText = '🏎️ F1 LIVERY'; 
             uiLogoText.style.color = '#e10600'; 
@@ -648,67 +608,70 @@ loader.load(
 
         const carModel = gltf.scene;
         
-        // 2. AUTO-SCALER: Ensure the model is perfectly sized for the camera
         const initialBox = new THREE.Box3().setFromObject(carModel);
         const size = new THREE.Vector3();
         initialBox.getSize(size);
         
         const maxDim = Math.max(size.x, size.y, size.z);
         if (maxDim > 0) {
-            // Force the car to be 8 units across so it fits in our view
             const scaleFactor = 8.0 / maxDim; 
             carModel.scale.setScalar(scaleFactor);
         }
         
-        // 3. PERFECT CENTERING: Snap the model to the direct center of the screen
         const finalBox = new THREE.Box3().setFromObject(carModel);
         const center = finalBox.getCenter(new THREE.Vector3());
         carModel.position.sub(center);
 
-        // 4. Assign materials
+        // FIX: Collect meshes FIRST to prevent the infinite Stack Overflow loop
+        const targetMeshes = [];
         carModel.traverse((node) => {
             if (node.isMesh) {
-                node.castShadow = true; node.receiveShadow = true;
-                const id = (node.name + (node.material ? node.material.name : '')).toLowerCase();
-                
-                if (!id.includes('wheel') && !id.includes('tire') && !id.includes('glass')) {
-                    if (node.material) {
-                        const parentId = node.parent ? node.parent.uuid : 'root';
-                        const matName = node.material.name || 'unnamed';
-                        const groupKey = parentId + "_" + matName;
-                        
-                        if (!modelCache[groupKey]) {
-                            modelCache[groupKey] = node.material.clone();
-                            modelCache[groupKey].color.setHex(0xffffff); 
-                            modelCache[groupKey].map = baseTexture; 
-                        }
-                        node.material = modelCache[groupKey];
-                        node.material.needsUpdate = true;
+                targetMeshes.push(node);
+            }
+        });
+
+        // Now loop through our safe list and apply the paint shells
+        targetMeshes.forEach((node) => {
+            node.castShadow = true; 
+            node.receiveShadow = true;
+            const id = (node.name + (node.material ? node.material.name : '')).toLowerCase();
+            
+            if (!id.includes('wheel') && !id.includes('tire') && !id.includes('glass')) {
+                if (node.material) {
+                    const parentId = node.parent ? node.parent.uuid : 'root';
+                    const matName = node.material.name || 'unnamed';
+                    const groupKey = parentId + "_" + matName;
+                    
+                    if (!modelCache[groupKey]) {
+                        modelCache[groupKey] = node.material.clone();
+                        modelCache[groupKey].color.setHex(0xffffff); 
+                        modelCache[groupKey].map = baseTexture; 
                     }
-                    
-                    paintableMeshes.push(node); 
-                    
-                    const paintShell = new THREE.Mesh(
-                        node.geometry,
-                        new THREE.MeshStandardMaterial({
-                            map: canvasTexture,
-                            transparent: true,
-                            depthWrite: false,
-                            polygonOffset: true,
-                            polygonOffsetFactor: -8, 
-                            polygonOffsetUnits: -8,
-                            roughness: 0.2
-                        })
-                    );
-                    node.add(paintShell);
+                    node.material = modelCache[groupKey];
+                    node.material.needsUpdate = true;
                 }
+                
+                paintableMeshes.push(node); 
+                
+                const paintShell = new THREE.Mesh(
+                    node.geometry,
+                    new THREE.MeshStandardMaterial({
+                        map: canvasTexture,
+                        transparent: true,
+                        depthWrite: false,
+                        polygonOffset: true,
+                        polygonOffsetFactor: -8, 
+                        polygonOffsetUnits: -8,
+                        roughness: 0.2
+                    })
+                );
+                node.add(paintShell); // Safe to add now!
             }
         });
         
         scene.add(carModel);
     },
     (xhr) => {
-        // UI FEEDBACK: Update the logo text with live download progress
         if (uiLogoText) {
             if (xhr.total > 0) {
                 const percent = Math.round((xhr.loaded / xhr.total) * 100);
@@ -717,11 +680,10 @@ loader.load(
                 const mb = (xhr.loaded / 1048576).toFixed(1);
                 uiLogoText.innerText = `LOADING... ${mb}MB`;
             }
-            uiLogoText.style.color = '#ff8700'; // Papaya Orange while loading
+            uiLogoText.style.color = '#ff8700'; 
         }
     },
     (error) => {
-        // FAILURE: Visually alert the user that a file 404'd
         if (uiLogoText) {
             uiLogoText.innerText = '❌ LOAD ERROR';
             uiLogoText.style.color = '#e10600';

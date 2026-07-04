@@ -67,22 +67,27 @@
         .cam-btn { padding: 4px 8px; font-size: 11px; }
         .size-btn { padding: 5px 8px; font-size: 11px; min-width: 30px; }
 
+        /* Updated Color Picker Container */
         .color-picker-wrap {
             display: flex; align-items: center; justify-content: center; gap: 12px; 
-            background: #252525; padding: 6px 12px; border-radius: 8px; border: 1px solid #444; width: 100%; box-sizing: border-box;
+            background: #252525; padding: 10px 15px; border-radius: 8px; border: 1px solid #444; width: 100%; box-sizing: border-box;
         }
-        
-        /* Native Color Input Styling */
-        input[type="color"] { width: 36px; height: 36px; border: none; border-radius: 5px; cursor: pointer; background: transparent; padding: 0; }
-        input[type="color"]::-webkit-color-swatch-wrapper { padding: 0; }
-        input[type="color"]::-webkit-color-swatch { border: 2px solid #555; border-radius: 6px; }
-        
-        .recent-colors { display: flex; gap: 6px; }
-        .color-swatch {
-            width: 28px; height: 28px; border-radius: 6px; border: 2px solid transparent; 
-            cursor: pointer; flex-shrink: 0; box-sizing: border-box; transition: 0.15s;
+
+        /* The New CSS Color Wheel Button */
+        .color-wheel-btn {
+            width: 44px; height: 44px; border-radius: 50%;
+            background: conic-gradient(red, yellow, lime, aqua, blue, magenta, red);
+            border: 2px solid white; cursor: pointer;
+            position: relative; overflow: hidden;
+            box-shadow: 0 4px 10px rgba(0,0,0,0.5);
+            transition: transform 0.2s;
         }
-        .color-swatch.active { border-color: white; transform: scale(1.1); box-shadow: 0 0 6px rgba(255,255,255,0.6); }
+        .color-wheel-btn:active { transform: scale(0.95); }
+
+        .color-wheel-btn input[type="color"] {
+            position: absolute; top: -10px; left: -10px; 
+            width: 70px; height: 70px; opacity: 0; cursor: pointer;
+        }
 
         #helpModal {
             position: fixed; top: 0; left: 0; width: 100vw; height: 100vh;
@@ -193,9 +198,10 @@
 
         <div class="tool-group">
             <div class="color-picker-wrap">
-                <input type="color" id="nativeColorPicker" value="#e10600">
-                <div id="recent-colors" class="recent-colors">
-                    </div>
+                <label style="color: white; font-size: 14px;">Select Paint Color:</label>
+                <div class="color-wheel-btn" title="Open Color Wheel">
+                    <input type="color" id="nativeColorPicker" value="#e10600">
+                </div>
             </div>
         </div>
     </div>
