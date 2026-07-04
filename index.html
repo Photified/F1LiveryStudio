@@ -30,7 +30,7 @@
             cursor: pointer; transition: 0.3s; user-select: none;
         }
         .settings-cog:hover { background: #3a3a3a; transform: rotate(45deg); }
-        .nav-placeholder { width: 40px; } /* Balancing element for header flex layout */
+        .nav-placeholder { width: 40px; } 
 
         #viewport3d { width: 100vw; flex-grow: 1; position: relative; z-index: 1; background: #1a1a1a; }
         #viewport3d canvas { touch-action: none !important; outline: none; display: block; }
@@ -57,6 +57,15 @@
         
         input[type="color"] { border: none; width: 35px; height: 35px; border-radius: 6px; cursor: pointer; background: none; }
         input[type="range"] { accent-color: #e10600; cursor: pointer; }
+
+        /* Mobile Eyedropper Toast Notification */
+        #toast-notification {
+            position: absolute; top: 85px; left: 50%; transform: translateX(-50%);
+            background: #007aff; color: white; padding: 10px 20px; border-radius: 8px;
+            font-family: sans-serif; font-weight: bold; font-size: 14px;
+            z-index: 100; box-shadow: 0 4px 15px rgba(0,0,0,0.5);
+            display: none; pointer-events: none;
+        }
 
         #helpModal {
             position: fixed; top: 0; left: 0; width: 100vw; height: 100vh;
@@ -93,6 +102,8 @@
         <button id="helpBtn" class="settings-cog" title="Settings & Help">⚙️</button>
     </div>
 
+    <div id="toast-notification">🧪 Tap anywhere on the car to copy color!</div>
+
     <div id="viewport3d"></div>
 
     <div id="helpModal">
@@ -101,7 +112,7 @@
             <ul>
                 <li><strong>🎥 Orbit Mode:</strong> Drag across the screen space with one finger or mouse to rotate around your vehicle.</li>
                 <li><strong>🖌️ Brush Mode:</strong> Select an explicit sizing from Circle or Square presets and slide your finger across panels to draw clean, seamless continuous lines.</li>
-                <li><strong>🧪 Sampler (Pipette):</strong> Tap the Color Eyedropper button, then select any pixel directly on the car surface to match colors on mobile or desktop!</li>
+                <li><strong>💉 Eyedropper:</strong> Tap the Eyedropper button to sample a color directly from your car.</li>
                 <li><strong>🪣 Bucket Mode:</strong> Tap over target segments to fill background panels instantly.</li>
                 <li><strong>⭐ Decal Mode:</strong> Drag over the car to position your decal in real-time. Use sliders to resize and rotate, then tap <strong>Stamp Decal</strong> to apply!</li>
                 <li><strong>🪞 Side Mirror:</strong> Set camera directly into <strong>Side</strong> perspective to open mirroring tools to replicate your design perfectly to the opposite side.</li>
@@ -135,10 +146,10 @@
         </div>
 
         <div class="tool-group">
-            <label>Color Selection</label>
+            <label>Color</label>
             <div class="btn-row">
                 <input type="color" id="paintColor" value="#e10600">
-                <button id="mode-sampler" class="sampler-btn" title="Surface Color Picker Extractor">🧪 🪟</button>
+                <button id="mode-sampler" class="sampler-btn" title="Eyedropper">💉</button>
             </div>
         </div>
 

@@ -85,7 +85,8 @@ const ui = {
     helpBtn: document.getElementById('helpBtn'),
     helpModal: document.getElementById('helpModal'),
     closeHelpBtn: document.getElementById('closeHelpBtn'),
-    installAppBtn: document.getElementById('installAppBtn')
+    installAppBtn: document.getElementById('installAppBtn'),
+    toast: document.getElementById('toast-notification')
 };
 
 function setMode(mode) {
@@ -120,7 +121,24 @@ ui.installAppBtn.addEventListener('click', async () => {
 ui.brush.addEventListener('click', () => setMode('brush'));
 ui.bucket.addEventListener('click', () => setMode('bucket'));
 ui.decal.addEventListener('click', () => setMode('decal'));
-ui.sampler.addEventListener('click', () => setMode('sampler'));
+
+// Eyedropper Desktop / Mobile Hybrid Logic
+ui.sampler.addEventListener('click', async () => {
+    if (window.EyeDropper) {
+        // Desktop: Use native browser eyedropper
+        const eyeDropper = new EyeDropper();
+        try {
+            const result = await eyeDropper.open();
+            ui.color.value = result.sRGBHex;
+        } catch (e) {
+            // User canceled eyedropper
+        }
+    } else {
+        // Mobile: Activate 3D surface picker and show toast
+        setMode('sampler');
+        ui.toast.style.display = 'block';
+    }
+});
 
 document.querySelectorAll('.size-btn').forEach(btn => {
     btn.addEventListener('click', (e) => {
@@ -281,7 +299,6 @@ function refreshLivePreview() {
 // --- Dynamic Distance Linear Path Interpolation Engine ---
 function applyInterpolatedStroke(pStart, pEnd, nStart, nEnd) {
     const dist = pStart.distanceTo(pEnd);
-    // Interpolation interval density scaling factor relative to selected brush sizing boundaries
     const stepSize = (activeSize / 100) * 0.125; 
     const steps = Math.max(1, Math.floor(dist / stepSize));
 
@@ -310,11 +327,12 @@ domCanvas.addEventListener('pointerdown', (e) => {
     const hit = getIntersection(e.clientX, e.clientY);
     if (!hit) return;
 
-    // Cross-Platform 3D Surface Color Picker Extractor System
+    // Mobile Fallback: 3D Surface Color Picker Extractor System
     if (currentMode === 'sampler') {
         if (hit.object && hit.object.material && hit.object.material.color) {
             const sampledHex = "#" + hit.object.material.color.getHexString();
             ui.color.value = sampledHex;
+            ui.toast.style.display = 'none'; // Hide toast
             setMode('camera'); // Return to viewport navigation automatically
         }
         return;
