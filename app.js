@@ -1,14 +1,13 @@
 // --- 1. Scene, Camera, & Renderer ---
 const container = document.getElementById('viewport3d');
 const scene = new THREE.Scene();
-scene.background = new THREE.Color('#121212'); // Darker backdrop to make HDRI pop
+scene.background = new THREE.Color('#121212'); 
 
 const camera = new THREE.PerspectiveCamera(45, window.innerWidth / window.innerHeight, 0.1, 100);
 const renderer = new THREE.WebGLRenderer({ antialias: true, alpha: true });
 renderer.setSize(window.innerWidth, window.innerHeight);
 renderer.setPixelRatio(Math.min(window.devicePixelRatio, 2));
 renderer.shadowMap.enabled = true;
-// Set rendering properties for HDRI processing
 renderer.outputEncoding = THREE.sRGBEncoding; 
 renderer.toneMapping = THREE.ACESFilmicToneMapping;
 renderer.toneMappingExposure = 1.0;
@@ -23,7 +22,7 @@ new THREE.RGBELoader()
     .setDataType(THREE.UnsignedByteType)
     .load('https://raw.githubusercontent.com/mrdoob/three.js/master/examples/textures/equirectangular/venice_sunset_1k.hdr', (texture) => {
         const envMap = pmremGenerator.fromEquirectangular(texture).texture;
-        scene.environment = envMap; // Apply realistic reflections to the car
+        scene.environment = envMap; 
         texture.dispose();
         pmremGenerator.dispose();
     });
@@ -40,8 +39,8 @@ controls.dampingFactor = 0.05;
 
 function getCamDist() { return window.innerWidth < 650 ? 25 : 10; }
 
-// FIXED: Adjust offset downward so the car appears higher on screen!
-function getCamOffsetY() { return window.innerWidth < 650 ? -4.5 : -1.2; }
+// FIXED: Increased the negative offset significantly to push the car high above the UI
+function getCamOffsetY() { return window.innerWidth < 650 ? -5.5 : -3.5; }
 
 controls.target.set(0, getCamOffsetY(), 0); 
 let sideToggleRight = true; 
@@ -59,13 +58,13 @@ function updateCameraTo(view) {
         cZ = 5.0;
     }
     
+    // FIXED: Raised the physical camera heights (the Y values) so we maintain a good downward viewing angle
     const views = {
-        side: new THREE.Vector3(sideToggleRight ? d : -d, 2.5, 0),
-        front: new THREE.Vector3(0, 2.5, d),
-        back: new THREE.Vector3(0, 2.5, -d),
-        // FIXED: Zoomed out Top view by increasing Y multiplier to 1.8
+        side: new THREE.Vector3(sideToggleRight ? d : -d, 3.5, 0),
+        front: new THREE.Vector3(0, 3.5, d),
+        back: new THREE.Vector3(0, 3.5, -d),
         top: new THREE.Vector3(0, d * 1.8, cZ),
-        iso: new THREE.Vector3(-d*0.7, 3.0, d*0.7)
+        iso: new THREE.Vector3(-d*0.7, 4.0, d*0.7)
     };
     
     if (views[view]) {
@@ -589,7 +588,7 @@ function getDecalMaterial(type, color) {
         polygonOffset: true, 
         polygonOffsetFactor: -4, 
         polygonOffsetUnits: -4, 
-        roughness: 0.1, // lowered roughness to capture HDRI reflections better!
+        roughness: 0.1, 
         metalness: 0.1
     });
     
@@ -812,15 +811,13 @@ baseTexture.flipY = false;
 baseTexture.encoding = THREE.sRGBEncoding;
 
 const modelCache = {}; 
-
-// Updated: Target the specific span we created for loading text
 const uiLogoText = document.getElementById('loading-text'); 
 
 loader.load(
     'scene.gltf', 
     (gltf) => {
         if (uiLogoText) {
-            uiLogoText.innerText = ''; // Clear loading text when done
+            uiLogoText.innerText = ''; 
         }
 
         const carModel = gltf.scene;
@@ -861,8 +858,8 @@ loader.load(
                         modelCache[groupKey] = node.material.clone();
                         modelCache[groupKey].color.setHex(0xffffff); 
                         modelCache[groupKey].map = baseTexture;
-                        modelCache[groupKey].roughness = 0.4; // Optimized for HDRI setup 
-                        modelCache[groupKey].metalness = 0.5; // Metallic car paint!
+                        modelCache[groupKey].roughness = 0.4; 
+                        modelCache[groupKey].metalness = 0.5; 
                     }
                     node.material = modelCache[groupKey];
                     node.material.needsUpdate = true;
