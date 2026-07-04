@@ -190,10 +190,16 @@
                 <button class="decal-btn" data-shape="triangle-fade">🔺 Tri Fade</button>
                 <button class="decal-btn" data-shape="gradient-block">🔲 Block</button>
             </div>
-            <div class="btn-row">
-                <input type="range" id="toolSize" min="10" max="2500" value="100" style="width: 110px;" title="Scale">
-                <input type="range" id="decalRot" min="0" max="360" value="0" style="width: 110px;" title="Rotation">
-            </div>
+            <div class="btn-row" style="gap: 20px; margin-top: 5px;">
+    <div style="display: flex; flex-direction: column; align-items: center; gap: 6px;">
+        <label for="toolSize">Size</label>
+        <input type="range" id="toolSize" min="10" max="2500" value="100" style="width: 110px;">
+    </div>
+    <div style="display: flex; flex-direction: column; align-items: center; gap: 6px;">
+        <label for="decalRot">Rotation</label>
+        <input type="range" id="decalRot" min="0" max="360" value="0" style="width: 110px;">
+    </div>
+</div>
         </div>
 
         <div class="tool-group">
