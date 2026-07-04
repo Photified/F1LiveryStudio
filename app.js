@@ -24,13 +24,17 @@ scene.add(sideLight2);
 const controls = new THREE.OrbitControls(camera, renderer.domElement);
 controls.enableDamping = true;
 controls.dampingFactor = 0.05;
-controls.target.set(0, -0.2, 0); 
 
-function getCamDist() { return window.innerWidth < 800 ? 18 : 10; }
+// Dynamic Camera Framing (Zoom & Pan adjustments for mobile UI clearance)
+function getCamDist() { return window.innerWidth < 650 ? 25 : 12; }
+function getCamOffsetY() { return window.innerWidth < 650 ? -1.2 : -0.2; }
+
+controls.target.set(0, getCamOffsetY(), 0); 
 
 function updateCameraTo(view) {
     if (view === 'free') return;
     const d = getCamDist();
+    const yOff = getCamOffsetY();
     const views = {
         side: new THREE.Vector3(d, 0.5, 0),
         front: new THREE.Vector3(0, 0.5, d),
@@ -40,8 +44,8 @@ function updateCameraTo(view) {
     };
     if (views[view]) {
         camera.position.copy(views[view]);
-        camera.lookAt(0, -0.2, 0);
-        controls.target.set(0, -0.2, 0);
+        camera.lookAt(0, yOff, 0);
+        controls.target.set(0, yOff, 0);
         controls.update();
     }
 }
@@ -142,6 +146,7 @@ ui.brush.addEventListener('click', () => setMode('brush'));
 ui.bucket.addEventListener('click', () => setMode('bucket'));
 ui.decal.addEventListener('click', () => setMode('decal'));
 
+// Custom Palette Logic
 document.querySelectorAll('.color-swatch').forEach(swatch => {
     swatch.addEventListener('click', (e) => {
         document.querySelectorAll('.color-swatch').forEach(s => s.classList.remove('active'));
@@ -256,6 +261,7 @@ function getIntersection(clientX, clientY) {
     return intersects.length > 0 ? intersects[0] : null;
 }
 
+// Crash-Proof Brush Function 
 function executeUVBrush(hit) {
     if (!hit.uv) return;
     const x = hit.uv.x * 2048;
@@ -340,7 +346,7 @@ domCanvas.addEventListener('pointerdown', (e) => {
         isPainting = true;
         saveCanvasState();
         executeUVBrush(hit);
-        textureNeedsGPUUpdate = true; 
+        textureNeedsGPUUpdate = true; // Batches the upload to prevent crashes
     } else if (currentMode === 'decal') {
         controls.enabled = false; 
         liveDecalHitData = { point: hit.point.clone(), normal: hit.face.normal.clone() };
@@ -355,6 +361,7 @@ domCanvas.addEventListener('pointermove', (e) => {
     if (touchStartPos.distanceTo(currentPos) > 8) gestureMoved = true;
 
     if (currentMode === 'brush' && isPainting) {
+        // High-Speed Math Engine: Instantly fills dots between fast finger swipes
         const dist = lastScreenPos.distanceTo(currentPos);
         const steps = Math.max(1, Math.floor(dist / 3)); 
 
@@ -416,6 +423,7 @@ ui.commitDecalBtn.addEventListener('click', () => {
 ui.mirrorBtn.addEventListener('click', () => {
     if (activeCamView !== 'side') return;
     
+    // 1. Mirror Canvas Textures (Brush Strokes)
     saveCanvasState();
     const halfWidth = 1024; const height = 2048;
     const leftSide = pCtx.getImageData(0, 0, halfWidth, height);
@@ -434,6 +442,7 @@ ui.mirrorBtn.addEventListener('click', () => {
     pCtx.putImageData(rightSide, halfWidth, 0);
     textureNeedsGPUUpdate = true;
 
+    // 2. Mirror 3D Decal Meshes
     while(mirrorDecalGroup.children.length > 0) {
         const child = mirrorDecalGroup.children[0];
         child.geometry.dispose();
@@ -514,9 +523,13 @@ loader.load('scene.gltf', (gltf) => {
     scene.add(carModel);
 });
 
-// --- 7. Animation Loop ---
+// --- 7. Animation Loop (TEXTURE THROTTLER) ---
 window.addEventListener('resize', () => {
-    camera.aspect = window.innerWidth / window.innerHeight; camera.updateProjectionMatrix(); renderer.setSize(window.innerWidth, window.innerHeight);
+    camera.aspect = window.innerWidth / window.innerHeight; 
+    camera.updateProjectionMatrix(); 
+    renderer.setSize(window.innerWidth, window.innerHeight);
+    // Dynamically update framing constraints on orientation change
+    controls.target.set(0, getCamOffsetY(), 0);
 });
 
 function animate() { 
