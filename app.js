@@ -74,6 +74,7 @@ let globalRenderOrder = 1;
 let stampHistory = []; 
 const actionHistory = []; 
 
+// This canvas is now STRICTLY for brush strokes (Starts completely transparent)
 const paintCanvas = document.createElement('canvas');
 paintCanvas.width = 2048; paintCanvas.height = 2048;
 const pCtx = paintCanvas.getContext('2d');
@@ -82,15 +83,11 @@ canvasTexture.flipY = false;
 canvasTexture.encoding = THREE.sRGBEncoding; 
 let textureNeedsGPUUpdate = false; 
 
-const baseMapImage = new Image();
-baseMapImage.src = 'textures/Livery_baseColor.png';
-baseMapImage.onload = () => resetToTextureDefaults();
-
 function resetToTextureDefaults() {
     pCtx.clearRect(0, 0, 2048, 2048);
-    pCtx.drawImage(baseMapImage, 0, 0, 2048, 2048);
     textureNeedsGPUUpdate = true;
 }
+resetToTextureDefaults();
 
 function saveCanvasState() {
     if (actionHistory.length > 15) actionHistory.shift();
@@ -292,7 +289,6 @@ function drawShape(ctx, x, y, size, type, color) {
     } 
     else if (type === 'slash-angles') {
         ctx.fillStyle = solidColor;
-        // Draw three staggered slashes
         for (let i = 0; i < 3; i++) {
             let offset = i * (size * 0.4);
             ctx.beginPath();
@@ -393,7 +389,10 @@ function getIntersection(clientX, clientY) {
     mouseVector.x = ((clientX - rect.left) / rect.width) * 2 - 1;
     mouseVector.y = -((clientY - rect.top) / rect.height) * 2 + 1;
     raycaster.setFromCamera(mouseVector, camera);
-    const intersects = raycaster.intersectObjects(paintableMeshes, true);
+    
+    // IMPORTANT FIX: Ensure raycast ONLY hits the base chassis meshes, preventing it from 
+    // accidentally targeting the transparent paint shell child nodes.
+    const intersects = raycaster.intersectObjects(paintableMeshes, false);
     return intersects.length > 0 ? intersects[0] : null;
 }
 
@@ -589,6 +588,13 @@ ui.resetBtn.addEventListener('click', () => {
 
 // --- 6. GLTF Car Asset Loader ---
 const loader = new THREE.GLTFLoader();
+const textureLoader = new THREE.TextureLoader();
+
+// Load the base Ambient Occlusion map separately so the bucket fill keeps its shading
+const baseTexture = textureLoader.load('textures/Livery_baseColor.png');
+baseTexture.flipY = false;
+baseTexture.encoding = THREE.sRGBEncoding;
+
 const modelCache = {}; 
 
 loader.load('scene.gltf', (gltf) => {
@@ -604,15 +610,37 @@ loader.load('scene.gltf', (gltf) => {
                     const matName = node.material.name || 'unnamed';
                     const groupKey = parentId + "_" + matName;
                     
+                    // Apply base model texture
                     if (!modelCache[groupKey]) {
                         modelCache[groupKey] = node.material.clone();
                         modelCache[groupKey].color.setHex(0xffffff); 
-                        modelCache[groupKey].map = canvasTexture; 
+                        modelCache[groupKey].map = baseTexture; 
                     }
                     node.material = modelCache[groupKey];
                     node.material.needsUpdate = true;
                 }
+                
+                // Track this as a valid target for bucket fills and decal projection
                 paintableMeshes.push(node); 
+                
+                // --- THE FIX: The Clear Coat Paint Shell ---
+                // Generates an invisible duplicate mesh that hovers over everything, including decals.
+                // The brush tool now strictly draws to THIS layer.
+                const paintShell = new THREE.Mesh(
+                    node.geometry,
+                    new THREE.MeshStandardMaterial({
+                        map: canvasTexture,
+                        transparent: true,
+                        depthWrite: false,
+                        polygonOffset: true,
+                        polygonOffsetFactor: -8, // Pulls the brush strokes in front of the decals (-4)
+                        polygonOffsetUnits: -8,
+                        roughness: 0.2
+                    })
+                );
+                
+                // Parent the shell to the original node so it perfectly mimics all scaling/rotation
+                node.add(paintShell);
             }
         }
     });
