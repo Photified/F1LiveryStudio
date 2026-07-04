@@ -65,13 +65,13 @@ let activeCamView = 'free';
 let isPainting = false;
 let paintableMeshes = []; 
 
-// Floating Live Decal State
 let liveDecalHitData = null;
 
 const ui = {
     brush: document.getElementById('mode-brush'),
     bucket: document.getElementById('mode-bucket'),
     decal: document.getElementById('mode-decal'),
+    sampler: document.getElementById('mode-sampler'),
     color: document.getElementById('paintColor'),
     brushWrap: document.getElementById('brush-presets-wrap'),
     decalWrap: document.getElementById('decal-select-wrap'),
@@ -90,14 +90,14 @@ const ui = {
 
 function setMode(mode) {
     currentMode = mode;
-    ['brush', 'bucket', 'decal'].forEach(m => ui[m]?.classList.remove('active'));
+    ['brush', 'bucket', 'decal', 'sampler'].forEach(m => ui[m]?.classList.remove('active'));
     if (ui[mode]) ui[mode].classList.add('active');
     
     ui.brushWrap.style.display = (mode === 'brush') ? 'flex' : 'none';
     ui.decalWrap.style.display = (mode === 'decal') ? 'flex' : 'none';
     
     clearGhosts();
-    controls.enabled = (mode !== 'brush'); // Lock camera view only while dragging brush strokes
+    controls.enabled = (mode !== 'brush'); 
 }
 
 ui.helpBtn.addEventListener('click', () => ui.helpModal.style.display = 'flex');
@@ -120,6 +120,7 @@ ui.installAppBtn.addEventListener('click', async () => {
 ui.brush.addEventListener('click', () => setMode('brush'));
 ui.bucket.addEventListener('click', () => setMode('bucket'));
 ui.decal.addEventListener('click', () => setMode('decal'));
+ui.sampler.addEventListener('click', () => setMode('sampler'));
 
 document.querySelectorAll('.size-btn').forEach(btn => {
     btn.addEventListener('click', (e) => {
@@ -144,7 +145,6 @@ document.querySelectorAll('.cam-btn').forEach(btn => {
     });
 });
 
-// Live Decal Adjusters
 const updateLiveDecalPreview = () => {
     if (currentMode === 'decal' && liveDecalHitData) {
         clearGhosts();
@@ -206,7 +206,6 @@ function getDecalMaterial(type, color) {
     const texture = new THREE.CanvasTexture(dCanvas);
     texture.anisotropy = renderer.capabilities.getMaxAnisotropy();
 
-    // CRITICAL STACKING LOGIC: DepthWrite false allows RenderOrder tracking chronologically 
     const mat = new THREE.MeshStandardMaterial({
         map: texture, transparent: true, depthTest: true, depthWrite: false, 
         polygonOffset: true, polygonOffsetFactor: -4, polygonOffsetUnits: -4, roughness: 0.2
@@ -243,7 +242,7 @@ function projectStamp(point, normal, rotation, size, shape, color, zIndex, isPre
     let renderMat = mat;
     if (isPreview) {
         renderMat = mat.clone();
-        renderMat.opacity = 0.5; // Transparent look for floating preview
+        renderMat.opacity = 0.5; 
     }
 
     const meshes = [];
@@ -279,10 +278,11 @@ function refreshLivePreview() {
     projectStamp(liveDecalHitData.point, liveDecalHitData.normal, rotVal, sizeVal, ui.decalType.value, ui.color.value, globalRenderOrder + 50, true);
 }
 
-// --- Dynamic Vector Interpolation Core Math ---
+// --- Dynamic Distance Linear Path Interpolation Engine ---
 function applyInterpolatedStroke(pStart, pEnd, nStart, nEnd) {
     const dist = pStart.distanceTo(pEnd);
-    const stepSize = activeSize / 400; // Density multiplier
+    // Interpolation interval density scaling factor relative to selected brush sizing boundaries
+    const stepSize = (activeSize / 100) * 0.125; 
     const steps = Math.max(1, Math.floor(dist / stepSize));
 
     for (let i = 1; i <= steps; i++) {
@@ -303,12 +303,22 @@ let gestureMoved = false;
 let currentStrokeMeshes = [];
 
 domCanvas.addEventListener('pointerdown', (e) => {
-    if (!e.isPrimary || e.target.closest('#control-center') || e.target.closest('header') || e.target.closest('.settings-cog')) return;
+    if (!e.isPrimary || e.target.closest('#control-center') || e.target.closest('.top-navbar')) return;
     touchStartPos.set(e.clientX, e.clientY);
     gestureMoved = false;
 
     const hit = getIntersection(e.clientX, e.clientY);
     if (!hit) return;
+
+    // Cross-Platform 3D Surface Color Picker Extractor System
+    if (currentMode === 'sampler') {
+        if (hit.object && hit.object.material && hit.object.material.color) {
+            const sampledHex = "#" + hit.object.material.color.getHexString();
+            ui.color.value = sampledHex;
+            setMode('camera'); // Return to viewport navigation automatically
+        }
+        return;
+    }
 
     if (currentMode === 'brush') {
         controls.enabled = false; 
@@ -320,7 +330,6 @@ domCanvas.addEventListener('pointerdown', (e) => {
         stampHistory.push({ point: hit.point, normal: hit.face.normal, rot: 0, size: activeSize / 100, shape: activeShape, color: ui.color.value, zIndex: globalRenderOrder });
         lastHitData = { point: hit.point.clone(), normal: hit.face.normal.clone() };
     } else if (currentMode === 'decal') {
-        // Drag positioning anchor setup
         controls.enabled = false; 
         liveDecalHitData = { point: hit.point.clone(), normal: hit.face.normal.clone() };
         clearGhosts();
@@ -338,11 +347,9 @@ domCanvas.addEventListener('pointermove', (e) => {
     if (!hit) return;
 
     if (currentMode === 'brush' && isPainting && lastHitData) {
-        // Apply smooth path lerping logic
         applyInterpolatedStroke(lastHitData.point, hit.point, lastHitData.normal, hit.face.normal);
         lastHitData = { point: hit.point.clone(), normal: hit.face.normal.clone() };
     } else if (currentMode === 'decal' && liveDecalHitData) {
-        // Seamless dragging reposition mechanism
         liveDecalHitData = { point: hit.point.clone(), normal: hit.face.normal.clone() };
         clearGhosts();
         refreshLivePreview();
@@ -352,7 +359,7 @@ domCanvas.addEventListener('pointermove', (e) => {
 domCanvas.addEventListener('pointerup', (e) => {
     if (!e.isPrimary) return;
     isPainting = false;
-    controls.enabled = (currentMode !== 'brush'); 
+    controls.enabled = (currentMode !== 'brush' && currentMode !== 'decal'); 
 
     if (currentMode === 'brush' && currentStrokeMeshes.length > 0) {
         actionHistory.push({ type: 'stroke', meshes: currentStrokeMeshes });
@@ -362,10 +369,9 @@ domCanvas.addEventListener('pointerup', (e) => {
     }
 
     if (currentMode === 'decal') {
-        controls.enabled = true; // Unlock orientation controllers upon release
+        controls.enabled = true; 
     }
 
-    // Static Taps processing router
     if (!gestureMoved && currentMode === 'bucket') {
         const hit = getIntersection(e.clientX, e.clientY);
         if (hit) {
@@ -375,7 +381,6 @@ domCanvas.addEventListener('pointerup', (e) => {
     }
 });
 
-// Commit the floating preview decal securely to history 
 ui.commitDecalBtn.addEventListener('click', () => {
     if (currentMode === 'decal' && liveDecalHitData) {
         const rotVal = parseInt(ui.decalRot.value);
@@ -389,7 +394,7 @@ ui.commitDecalBtn.addEventListener('click', () => {
         globalRenderOrder++; 
         
         clearGhosts();
-        liveDecalHitData = null; // Flush active canvas selection stage cleanly
+        liveDecalHitData = null; 
     }
 });
 

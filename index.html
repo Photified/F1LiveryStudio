@@ -8,30 +8,32 @@
     <style>
         body { 
             margin: 0; background: #121212; color: white; font-family: sans-serif; 
-            height: 100vh; overflow: hidden; touch-action: none; overscroll-behavior: none; 
+            height: 100vh; display: flex; flex-direction: column; overflow: hidden; 
+            touch-action: none; overscroll-behavior: none; 
         }
         
-        header {
-            position: absolute; top: 0; left: 0; width: 100%;
-            background: linear-gradient(to bottom, rgba(26,26,26,0.9), rgba(26,26,26,0));
-            padding: 10px 0; display: flex; justify-content: center; z-index: 10; pointer-events: none;
+        /* Fixed Isolated Top Banner Bar */
+        .top-navbar {
+            width: 100%; height: 70px; background: #1a1a1a;
+            border-bottom: 1px solid #333; display: flex; 
+            align-items: center; justify-content: space-between;
+            padding: 0 15px; box-sizing: border-box; z-index: 50;
         }
-        .app-logo { width: 90%; max-width: 800px; height: 100px; object-fit: contain; pointer-events: auto; }
+        .logo-container { height: 100%; display: flex; align-items: center; flex-grow: 1; justify-content: center; }
+        .app-logo { max-width: 80%; height: 45px; object-fit: contain; }
 
-        /* Floating Settings Cogwheel */
+        /* Integrated Nav Header Cogwheel */
         .settings-cog {
-            position: absolute; top: 15px; right: 20px;
-            background: rgba(20,20,20,0.85); border: 1px solid #444; border-radius: 50%;
-            color: white; font-size: 22px; width: 45px; height: 45px;
+            background: #2a2a2a; border: 1px solid #555; border-radius: 50%;
+            color: white; font-size: 18px; width: 40px; height: 40px;
             display: flex; justify-content: center; align-items: center;
-            cursor: pointer; z-index: 50; transition: 0.3s;
-            box-shadow: 0 4px 10px rgba(0,0,0,0.5);
-            backdrop-filter: blur(5px);
+            cursor: pointer; transition: 0.3s; user-select: none;
         }
-        .settings-cog:hover { background: #333; transform: rotate(45deg); }
+        .settings-cog:hover { background: #3a3a3a; transform: rotate(45deg); }
+        .nav-placeholder { width: 40px; } /* Balancing element for header flex layout */
 
-        #viewport3d { width: 100vw; height: 100vh; position: absolute; top: 0; left: 0; z-index: 1; }
-        #viewport3d canvas { touch-action: none !important; outline: none; }
+        #viewport3d { width: 100vw; flex-grow: 1; position: relative; z-index: 1; background: #1a1a1a; }
+        #viewport3d canvas { touch-action: none !important; outline: none; display: block; }
 
         #control-center {
             position: absolute; bottom: 15px; left: 50%; transform: translateX(-50%);
@@ -51,15 +53,15 @@
         
         .cam-btn { padding: 6px 8px; font-size: 11px; }
         .size-btn { padding: 6px 10px; font-size: 11px; min-width: 32px; }
+        .sampler-btn { font-size: 14px; padding: 7px 10px; }
         
-        input[type="color"] { border: none; width: 40px; height: 35px; border-radius: 6px; cursor: pointer; background: none; }
+        input[type="color"] { border: none; width: 35px; height: 35px; border-radius: 6px; cursor: pointer; background: none; }
+        input[type="range"] { accent-color: #e10600; cursor: pointer; }
 
-        /* Help Modal Box Custom CSS */
         #helpModal {
             position: fixed; top: 0; left: 0; width: 100vw; height: 100vh;
             background: rgba(0,0,0,0.85); backdrop-filter: blur(8px);
-            display: none; /* Hides the modal on initial load */
-            justify-content: center; align-items: center; z-index: 100;
+            display: none; justify-content: center; align-items: center; z-index: 100;
         }
         .modal-content {
             background: #1a1a1a; border: 1px solid #444; border-radius: 14px;
@@ -72,8 +74,9 @@
         #installAppBtn { background: #007aff; border-color: #0056b3; display: none; }
 
         @media (max-width: 650px) {
-            .app-logo { height: 50px; }
-            .settings-cog { top: 10px; right: 10px; width: 38px; height: 38px; font-size: 18px; }
+            .top-navbar { height: 55px; padding: 0 10px; }
+            .app-logo { height: 32px; }
+            .settings-cog { width: 34px; height: 34px; font-size: 15px; }
             #control-center { padding: 8px; gap: 6px; bottom: 10px; }
             button, select { padding: 6px 8px; font-size: 11px; }
             .cam-btn, .size-btn { padding: 5px 6px; font-size: 10px; }
@@ -82,20 +85,23 @@
 </head>
 <body>
 
-    <header>
-        <img src="logo.png" alt="Livery Studio Logo" class="app-logo">
-    </header>
-
-    <button id="helpBtn" class="settings-cog" title="Settings & Help">⚙️</button>
+    <div class="top-navbar">
+        <div class="nav-placeholder"></div>
+        <div class="logo-container">
+            <img src="logo.png" alt="Livery Studio Logo" class="app-logo">
+        </div>
+        <button id="helpBtn" class="settings-cog" title="Settings & Help">⚙️</button>
+    </div>
 
     <div id="viewport3d"></div>
 
     <div id="helpModal">
         <div class="modal-content">
-            <h2>🏎 "How to Play"</h2>
+            <h2>🏎️ How to Play</h2>
             <ul>
-                <li><strong>🎥 Orbit Mode:</strong> Drag around screen space with one finger/mouse to rotate seamlessly around your racing chassis.</li>
-                <li><strong>🖌 Brush Mode:</strong> Select an explicit sizing from Circle or Square presets and draw across panels.</li>
+                <li><strong>🎥 Orbit Mode:</strong> Drag across the screen space with one finger or mouse to rotate around your vehicle.</li>
+                <li><strong>🖌️ Brush Mode:</strong> Select an explicit sizing from Circle or Square presets and slide your finger across panels to draw clean, seamless continuous lines.</li>
+                <li><strong>🧪 Sampler (Pipette):</strong> Tap the Color Eyedropper button, then select any pixel directly on the car surface to match colors on mobile or desktop!</li>
                 <li><strong>🪣 Bucket Mode:</strong> Tap over target segments to fill background panels instantly.</li>
                 <li><strong>⭐ Decal Mode:</strong> Drag over the car to position your decal in real-time. Use sliders to resize and rotate, then tap <strong>Stamp Decal</strong> to apply!</li>
                 <li><strong>🪞 Side Mirror:</strong> Set camera directly into <strong>Side</strong> perspective to open mirroring tools to replicate your design perfectly to the opposite side.</li>
@@ -122,15 +128,18 @@
         <div class="tool-group">
             <label>Studio Mode</label>
             <div class="btn-row">
-                <button id="mode-brush">🖌 Brush</button>
+                <button id="mode-brush">🖌️ Brush</button>
                 <button id="mode-bucket">🪣 Bucket</button>
                 <button id="mode-decal">⭐ Decal</button>
             </div>
         </div>
 
         <div class="tool-group">
-            <label>Color</label>
-            <input type="color" id="paintColor" value="#e10600">
+            <label>Color Selection</label>
+            <div class="btn-row">
+                <input type="color" id="paintColor" value="#e10600">
+                <button id="mode-sampler" class="sampler-btn" title="Surface Color Picker Extractor">🧪 🪟</button>
+            </div>
         </div>
 
         <div class="tool-group" id="brush-presets-wrap" style="display: none;">
@@ -168,8 +177,8 @@
                     <option value="swoosh">🌙 Racing Swoosh</option>
                     <option value="cross">➕ Cross</option>
                 </select>
-                <input type="range" id="toolSize" min="10" max="500" value="100" style="width: 70px;" title="Scale">
-                <input type="range" id="decalRot" min="0" max="360" value="0" style="width: 70px;" title="Rotation">
+                <input type="range" id="toolSize" min="10" max="500" value="100" style="width: 65px;" title="Scale">
+                <input type="range" id="decalRot" min="0" max="360" value="0" style="width: 65px;" title="Rotation">
                 <button id="commitDecalBtn" style="background: #007aff; border-color: #0056b3;">📌 Stamp Decal</button>
             </div>
         </div>
@@ -178,7 +187,7 @@
             <label>Actions</label>
             <div class="btn-row">
                 <button id="mirrorBtn" style="background: #222; display: none;">🪞 Mirror Side</button>
-                <button id="undoBtn" style="background: #333;">↩ Undo</button>
+                <button id="undoBtn" style="background: #333;">↩️ Undo</button>
                 <button id="resetBtn" style="background: #555;">Reset All</button>
             </div>
         </div>
