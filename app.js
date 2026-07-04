@@ -47,16 +47,15 @@ function updateCameraTo(view) {
 }
 updateCameraTo('iso'); 
 
-// --- 2. Advanced Global Stacking System ---
-// Groups to hold all generated 3D physical paint/decals
+// --- 2. Advanced Layer Stacking Framework ---
 const mainDecalGroup = new THREE.Group();
 const mirrorDecalGroup = new THREE.Group();
 scene.add(mainDecalGroup);
 scene.add(mirrorDecalGroup);
 
-let globalRenderOrder = 1; // Chronological layer order prevents Decals from going under Paint
-const stampHistory = []; // Records coordinates for Mirror mapping
-const actionHistory = []; // For Undo functionality
+let globalRenderOrder = 1; 
+let stampHistory = []; 
+const actionHistory = []; 
 
 // --- 3. UI, State, & Modal Handlers ---
 let currentMode = 'camera'; 
@@ -65,6 +64,9 @@ let activeSize = 3;
 let activeCamView = 'free';
 let isPainting = false;
 let paintableMeshes = []; 
+
+// Floating Live Decal State
+let liveDecalHitData = null;
 
 const ui = {
     brush: document.getElementById('mode-brush'),
@@ -76,6 +78,7 @@ const ui = {
     decalType: document.getElementById('decalType'),
     decalRot: document.getElementById('decalRot'),
     decalSize: document.getElementById('toolSize'),
+    commitDecalBtn: document.getElementById('commitDecalBtn'),
     mirrorBtn: document.getElementById('mirrorBtn'),
     undoBtn: document.getElementById('undoBtn'),
     resetBtn: document.getElementById('resetBtn'),
@@ -92,10 +95,11 @@ function setMode(mode) {
     
     ui.brushWrap.style.display = (mode === 'brush') ? 'flex' : 'none';
     ui.decalWrap.style.display = (mode === 'decal') ? 'flex' : 'none';
-    controls.enabled = true; 
+    
+    clearGhosts();
+    controls.enabled = (mode !== 'brush'); // Lock camera view only while dragging brush strokes
 }
 
-// Help Modal & PWA Logic
 ui.helpBtn.addEventListener('click', () => ui.helpModal.style.display = 'flex');
 ui.closeHelpBtn.addEventListener('click', () => ui.helpModal.style.display = 'none');
 
@@ -117,7 +121,6 @@ ui.brush.addEventListener('click', () => setMode('brush'));
 ui.bucket.addEventListener('click', () => setMode('bucket'));
 ui.decal.addEventListener('click', () => setMode('decal'));
 
-// Preset sizing controller
 document.querySelectorAll('.size-btn').forEach(btn => {
     btn.addEventListener('click', (e) => {
         document.querySelectorAll('.size-btn').forEach(b => b.classList.remove('active'));
@@ -127,7 +130,6 @@ document.querySelectorAll('.size-btn').forEach(btn => {
     });
 });
 
-// Camera and Mirror View Logic
 document.querySelectorAll('.cam-btn').forEach(btn => {
     btn.addEventListener('click', (e) => {
         document.querySelectorAll('.cam-btn').forEach(b => b.classList.remove('active'));
@@ -142,7 +144,19 @@ document.querySelectorAll('.cam-btn').forEach(btn => {
     });
 });
 
-// --- 4. 2D Geometry Engine for generating Decals/Brushes ---
+// Live Decal Adjusters
+const updateLiveDecalPreview = () => {
+    if (currentMode === 'decal' && liveDecalHitData) {
+        clearGhosts();
+        refreshLivePreview();
+    }
+};
+ui.decalType.addEventListener('change', updateLiveDecalPreview);
+ui.decalSize.addEventListener('input', updateLiveDecalPreview);
+ui.decalRot.addEventListener('input', updateLiveDecalPreview);
+ui.color.addEventListener('input', updateLiveDecalPreview);
+
+// --- 4. 2D Graphical Vector Drawer ---
 function drawShape(ctx, x, y, size, type, color) {
     ctx.save(); ctx.fillStyle = color; ctx.translate(x, y);
 
@@ -202,7 +216,7 @@ function getDecalMaterial(type, color) {
     return mat;
 }
 
-// --- 5. Projector Raycast Engine ---
+// --- 5. Projector & Raycast Engine ---
 const raycaster = new THREE.Raycaster();
 const mouseVector = new THREE.Vector2();
 const domCanvas = renderer.domElement;
@@ -217,55 +231,100 @@ function getIntersection(clientX, clientY) {
     return intersects.length > 0 ? intersects[0] : null;
 }
 
-// Engine to convert coordinates directly into 3D meshes that perfectly overlay the car
-function projectStamp(point, normal, rotation, size, shape, color, zIndex, isMirrored = false) {
+function projectStamp(point, normal, rotation, size, shape, color, zIndex, isPreview = false, isMirrored = false) {
     const dummy = new THREE.Object3D();
     dummy.position.copy(point);
-    const lookPos = point.clone().add(normal);
-    dummy.lookAt(lookPos);
+    dummy.lookAt(point.clone().add(normal));
     dummy.rotateZ(rotation * Math.PI / 180);
 
     const scale = new THREE.Vector3(size, size, Math.min(size, 2.0)); 
     const mat = getDecalMaterial(shape, color);
-    const meshes = [];
+    
+    let renderMat = mat;
+    if (isPreview) {
+        renderMat = mat.clone();
+        renderMat.opacity = 0.5; // Transparent look for floating preview
+    }
 
+    const meshes = [];
     paintableMeshes.forEach(mesh => {
         const geo = new THREE.DecalGeometry(mesh, point, dummy.rotation, scale);
         if (geo.attributes.position.count > 0) {
-            const decalMesh = new THREE.Mesh(geo, mat);
-            decalMesh.renderOrder = zIndex; // Forces it to draw exactly on top of previous shapes
+            const decalMesh = new THREE.Mesh(geo, renderMat);
+            decalMesh.renderOrder = zIndex; 
             meshes.push(decalMesh);
         }
     });
 
-    const targetGroup = isMirrored ? mirrorDecalGroup : mainDecalGroup;
-    meshes.forEach(m => targetGroup.add(m));
+    const targetGroup = isPreview ? activeGhostMeshes : (isMirrored ? mirrorDecalGroup : mainDecalGroup);
+    meshes.forEach(m => {
+        if (isPreview) activeGhostMeshes.push(m);
+        targetGroup.add(m);
+    });
     return meshes; 
 }
 
-// TAP vs DRAG Logic Engine for Mobile
+function clearGhosts() {
+    activeGhostMeshes.forEach(mesh => {
+        if (mesh.parent) mesh.parent.remove(mesh);
+        mesh.geometry.dispose();
+    });
+    activeGhostMeshes.length = 0;
+}
+
+function refreshLivePreview() {
+    if (!liveDecalHitData) return;
+    const rotVal = parseInt(ui.decalRot.value);
+    const sizeVal = parseInt(ui.decalSize.value) / 100;
+    projectStamp(liveDecalHitData.point, liveDecalHitData.normal, rotVal, sizeVal, ui.decalType.value, ui.color.value, globalRenderOrder + 50, true);
+}
+
+// --- Dynamic Vector Interpolation Core Math ---
+function applyInterpolatedStroke(pStart, pEnd, nStart, nEnd) {
+    const dist = pStart.distanceTo(pEnd);
+    const stepSize = activeSize / 400; // Density multiplier
+    const steps = Math.max(1, Math.floor(dist / stepSize));
+
+    for (let i = 1; i <= steps; i++) {
+        const t = i / steps;
+        const currentPoint = new THREE.Vector3().lerpVectors(pStart, pEnd, t);
+        const currentNormal = new THREE.Vector3().lerpVectors(nStart, nEnd, t).normalize();
+
+        const meshes = projectStamp(currentPoint, currentNormal, 0, activeSize / 100, activeShape, ui.color.value, globalRenderOrder);
+        currentStrokeMeshes.push(...meshes);
+        stampHistory.push({ point: currentPoint, normal: currentNormal, rot: 0, size: activeSize / 100, shape: activeShape, color: ui.color.value, zIndex: globalRenderOrder });
+    }
+}
+
+// Tap vs Drag Interaction Logic Routing
 let touchStartPos = new THREE.Vector2();
-let lastBrushPoint = null;
+let lastHitData = null;
 let gestureMoved = false;
-let currentStrokeMeshes = []; // Stores individual meshes for undo array
+let currentStrokeMeshes = [];
 
 domCanvas.addEventListener('pointerdown', (e) => {
-    if (!e.isPrimary || e.target.closest('#control-center') || e.target.closest('header')) return;
+    if (!e.isPrimary || e.target.closest('#control-center') || e.target.closest('header') || e.target.closest('.settings-cog')) return;
     touchStartPos.set(e.clientX, e.clientY);
     gestureMoved = false;
+
+    const hit = getIntersection(e.clientX, e.clientY);
+    if (!hit) return;
 
     if (currentMode === 'brush') {
         controls.enabled = false; 
         isPainting = true;
         currentStrokeMeshes = [];
         
-        const hit = getIntersection(e.clientX, e.clientY);
-        if (hit) {
-            const meshes = projectStamp(hit.point, hit.face.normal, 0, activeSize / 100, activeShape, ui.color.value, globalRenderOrder);
-            currentStrokeMeshes.push(...meshes);
-            stampHistory.push({ point: hit.point, normal: hit.face.normal, rot: 0, size: activeSize / 100, shape: activeShape, color: ui.color.value, zIndex: globalRenderOrder });
-            lastBrushPoint = hit.point.clone();
-        }
+        const meshes = projectStamp(hit.point, hit.face.normal, 0, activeSize / 100, activeShape, ui.color.value, globalRenderOrder);
+        currentStrokeMeshes.push(...meshes);
+        stampHistory.push({ point: hit.point, normal: hit.face.normal, rot: 0, size: activeSize / 100, shape: activeShape, color: ui.color.value, zIndex: globalRenderOrder });
+        lastHitData = { point: hit.point.clone(), normal: hit.face.normal.clone() };
+    } else if (currentMode === 'decal') {
+        // Drag positioning anchor setup
+        controls.enabled = false; 
+        liveDecalHitData = { point: hit.point.clone(), normal: hit.face.normal.clone() };
+        clearGhosts();
+        refreshLivePreview();
     }
 });
 
@@ -275,68 +334,76 @@ domCanvas.addEventListener('pointermove', (e) => {
         gestureMoved = true;
     }
 
-    if (currentMode === 'brush' && isPainting) {
-        const hit = getIntersection(e.clientX, e.clientY);
-        // Optimization: Throttles brush rendering distance so it doesn't lag the phone
-        if (hit && (!lastBrushPoint || lastBrushPoint.distanceTo(hit.point) > (activeSize / 400))) {
-            const meshes = projectStamp(hit.point, hit.face.normal, 0, activeSize / 100, activeShape, ui.color.value, globalRenderOrder);
-            currentStrokeMeshes.push(...meshes);
-            stampHistory.push({ point: hit.point, normal: hit.face.normal, rot: 0, size: activeSize / 100, shape: activeShape, color: ui.color.value, zIndex: globalRenderOrder });
-            lastBrushPoint = hit.point.clone();
-        }
+    const hit = getIntersection(e.clientX, e.clientY);
+    if (!hit) return;
+
+    if (currentMode === 'brush' && isPainting && lastHitData) {
+        // Apply smooth path lerping logic
+        applyInterpolatedStroke(lastHitData.point, hit.point, lastHitData.normal, hit.face.normal);
+        lastHitData = { point: hit.point.clone(), normal: hit.face.normal.clone() };
+    } else if (currentMode === 'decal' && liveDecalHitData) {
+        // Seamless dragging reposition mechanism
+        liveDecalHitData = { point: hit.point.clone(), normal: hit.face.normal.clone() };
+        clearGhosts();
+        refreshLivePreview();
     }
 });
 
 domCanvas.addEventListener('pointerup', (e) => {
     if (!e.isPrimary) return;
-    controls.enabled = true;
+    isPainting = false;
+    controls.enabled = (currentMode !== 'brush'); 
 
-    // Complete the brush stroke
-    if (currentMode === 'brush' && isPainting) {
-        isPainting = false;
-        if (currentStrokeMeshes.length > 0) {
-            actionHistory.push({ type: 'stroke', meshes: currentStrokeMeshes });
-            globalRenderOrder++; // Lock the layer in chronologically
-        }
+    if (currentMode === 'brush' && currentStrokeMeshes.length > 0) {
+        actionHistory.push({ type: 'stroke', meshes: currentStrokeMeshes });
+        globalRenderOrder++;
+        lastHitData = null;
         return;
     }
 
-    if (!gestureMoved && currentMode !== 'camera') {
-        const hit = getIntersection(e.clientX, e.clientY);
-        if (!hit) return;
+    if (currentMode === 'decal') {
+        controls.enabled = true; // Unlock orientation controllers upon release
+    }
 
-        if (currentMode === 'bucket') {
+    // Static Taps processing router
+    if (!gestureMoved && currentMode === 'bucket') {
+        const hit = getIntersection(e.clientX, e.clientY);
+        if (hit) {
             actionHistory.push({ type: 'bucket', mesh: hit.object, oldColor: hit.object.material.color.getHex() });
             hit.object.material.color.set(ui.color.value);
-            
-        } else if (currentMode === 'decal') {
-            const rotVal = parseInt(ui.decalRot.value);
-            const sizeVal = parseInt(ui.decalSize.value) / 100;
-            const targetShape = ui.decalType.value;
-            
-            const meshes = projectStamp(hit.point, hit.face.normal, rotVal, sizeVal, targetShape, ui.color.value, globalRenderOrder);
-            stampHistory.push({ point: hit.point, normal: hit.face.normal, rot: rotVal, size: sizeVal, shape: targetShape, color: ui.color.value, zIndex: globalRenderOrder });
-            
-            actionHistory.push({ type: 'stroke', meshes: meshes });
-            globalRenderOrder++; 
         }
     }
 });
 
-// --- Action Event Logic ---
+// Commit the floating preview decal securely to history 
+ui.commitDecalBtn.addEventListener('click', () => {
+    if (currentMode === 'decal' && liveDecalHitData) {
+        const rotVal = parseInt(ui.decalRot.value);
+        const sizeVal = parseInt(ui.decalSize.value) / 100;
+        const targetShape = ui.decalType.value;
+
+        const meshes = projectStamp(liveDecalHitData.point, liveDecalHitData.normal, rotVal, sizeVal, targetShape, ui.color.value, globalRenderOrder, false, false);
+        stampHistory.push({ point: liveDecalHitData.point.clone(), normal: liveDecalHitData.normal.clone(), rot: rotVal, size: sizeVal, shape: targetShape, color: ui.color.value, zIndex: globalRenderOrder });
+        
+        actionHistory.push({ type: 'stroke', meshes: meshes });
+        globalRenderOrder++; 
+        
+        clearGhosts();
+        liveDecalHitData = null; // Flush active canvas selection stage cleanly
+    }
+});
+
+// --- Action Command Framework ---
 ui.mirrorBtn.addEventListener('click', () => {
-    // 1. Wipe existing mirrors completely to avoid messy overlaps
     while(mirrorDecalGroup.children.length > 0) {
         const child = mirrorDecalGroup.children[0];
         child.geometry.dispose();
         mirrorDecalGroup.remove(child);
     }
-    
-    // 2. Iterate through exact coordinates of active history, flip the X vectors, and generate perfectly aligned copies
     stampHistory.forEach(stamp => {
         const mPoint = stamp.point.clone(); mPoint.x *= -1;
         const mNormal = stamp.normal.clone(); mNormal.x *= -1;
-        projectStamp(mPoint, mNormal, -stamp.rot, stamp.size, stamp.shape, stamp.color, stamp.zIndex, true);
+        projectStamp(mPoint, mNormal, -stamp.rot, stamp.size, stamp.shape, stamp.color, stamp.zIndex, false, true);
     });
 });
 
@@ -348,32 +415,33 @@ ui.undoBtn.addEventListener('click', () => {
         } else if (lastAction.type === 'stroke') {
             lastAction.meshes.forEach(mesh => {
                 mesh.geometry.dispose();
-                mainDecalGroup.remove(mesh);
+                if (mesh.parent) mesh.parent.remove(mesh);
             });
         }
     }
 });
 
 ui.resetBtn.addEventListener('click', () => {
+    clearGhosts();
     while(mainDecalGroup.children.length > 0) { mainDecalGroup.children[0].geometry.dispose(); mainDecalGroup.remove(mainDecalGroup.children[0]); }
     while(mirrorDecalGroup.children.length > 0) { mirrorDecalGroup.children[0].geometry.dispose(); mirrorDecalGroup.remove(mirrorDecalGroup.children[0]); }
     
     actionHistory.length = 0;
     stampHistory.length = 0;
     globalRenderOrder = 1;
+    liveDecalHitData = null;
     
     paintableMeshes.forEach(mesh => {
         if (mesh.material) mesh.material.color.setHex(0xffffff);
     });
 });
 
-// --- 6. GLTF Loader ---
+// --- 6. GLTF Car Asset Node Traverser ---
 const loader = new THREE.GLTFLoader();
 const modelCache = {}; 
 
 loader.load('scene.gltf', (gltf) => {
     const carModel = gltf.scene;
-
     carModel.traverse((node) => {
         if (node.isMesh) {
             node.castShadow = true; node.receiveShadow = true;
@@ -396,13 +464,12 @@ loader.load('scene.gltf', (gltf) => {
             }
         }
     });
-
     const box = new THREE.Box3().setFromObject(carModel);
     carModel.position.sub(box.getCenter(new THREE.Vector3()));
     scene.add(carModel);
 });
 
-// --- 7. Animation Frame Core Loop ---
+// --- 7. Main Core Render Animation Frame Loop ---
 window.addEventListener('resize', () => {
     camera.aspect = window.innerWidth / window.innerHeight; camera.updateProjectionMatrix(); renderer.setSize(window.innerWidth, window.innerHeight);
 });
