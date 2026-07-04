@@ -74,7 +74,6 @@ let globalRenderOrder = 1;
 let stampHistory = []; 
 const actionHistory = []; 
 
-// This canvas is now STRICTLY for brush strokes (Starts completely transparent)
 const paintCanvas = document.createElement('canvas');
 paintCanvas.width = 2048; paintCanvas.height = 2048;
 const pCtx = paintCanvas.getContext('2d');
@@ -99,6 +98,7 @@ let currentMode = 'camera';
 let activeShape = 'circle'; 
 let activeSize = 3; 
 let activeCamView = 'free';
+let activeDecalType = 'solid-stripe';
 let isPainting = false;
 let paintableMeshes = []; 
 let currentColor = '#e10600'; 
@@ -110,7 +110,6 @@ const ui = {
     decal: document.getElementById('mode-decal'),
     brushWrap: document.getElementById('brush-presets-wrap'),
     decalWrap: document.getElementById('decal-select-wrap'),
-    decalType: document.getElementById('decalType'),
     decalRot: document.getElementById('decalRot'),
     decalSize: document.getElementById('toolSize'),
     commitDecalBtn: document.getElementById('commitDecalBtn'),
@@ -119,7 +118,9 @@ const ui = {
     helpBtn: document.getElementById('helpBtn'),
     helpModal: document.getElementById('helpModal'),
     closeHelpBtn: document.getElementById('closeHelpBtn'),
-    installAppBtn: document.getElementById('installAppBtn')
+    installAppBtn: document.getElementById('installAppBtn'),
+    nativeColorPicker: document.getElementById('nativeColorPicker'),
+    recentColorsWrap: document.getElementById('recent-colors')
 };
 
 function setMode(mode) {
@@ -167,14 +168,49 @@ ui.brush.addEventListener('click', () => setMode('brush'));
 ui.bucket.addEventListener('click', () => setMode('bucket'));
 ui.decal.addEventListener('click', () => setMode('decal'));
 
-document.querySelectorAll('.color-swatch').forEach(swatch => {
-    swatch.addEventListener('click', (e) => {
-        document.querySelectorAll('.color-swatch').forEach(s => s.classList.remove('active'));
+// Visual Decal Picker Logic
+document.querySelectorAll('.decal-btn').forEach(btn => {
+    btn.addEventListener('click', (e) => {
+        document.querySelectorAll('.decal-btn').forEach(b => b.classList.remove('active'));
         e.target.classList.add('active');
-        currentColor = e.target.getAttribute('data-color');
-        if (currentMode === 'decal') updateLiveDecalPreview();
+        activeDecalType = e.target.getAttribute('data-shape');
+        updateLiveDecalPreview();
     });
 });
+
+// Color System Logic (Native + Recent)
+let recentColors = ['#e10600', '#ffffff', '#000000', '#007aff'];
+
+function renderRecentColors() {
+    ui.recentColorsWrap.innerHTML = '';
+    recentColors.forEach(c => {
+        const swatch = document.createElement('div');
+        swatch.className = 'color-swatch' + (c === currentColor ? ' active' : '');
+        swatch.style.background = c;
+        swatch.setAttribute('data-color', c);
+        swatch.addEventListener('click', () => {
+            currentColor = c;
+            ui.nativeColorPicker.value = c;
+            renderRecentColors();
+            if (currentMode === 'decal') updateLiveDecalPreview();
+        });
+        ui.recentColorsWrap.appendChild(swatch);
+    });
+}
+
+ui.nativeColorPicker.addEventListener('input', (e) => {
+    currentColor = e.target.value;
+    if (currentMode === 'decal') updateLiveDecalPreview();
+});
+
+ui.nativeColorPicker.addEventListener('change', () => {
+    if (!recentColors.includes(currentColor)) {
+        recentColors.unshift(currentColor);
+        if (recentColors.length > 5) recentColors.pop(); 
+        renderRecentColors();
+    }
+});
+renderRecentColors(); 
 
 document.querySelectorAll('.size-btn').forEach(btn => {
     btn.addEventListener('click', (e) => {
@@ -208,7 +244,6 @@ const updateLiveDecalPreview = () => {
         refreshLivePreview();
     }
 };
-ui.decalType.addEventListener('change', updateLiveDecalPreview);
 ui.decalSize.addEventListener('input', updateLiveDecalPreview);
 ui.decalRot.addEventListener('input', updateLiveDecalPreview);
 
@@ -389,9 +424,6 @@ function getIntersection(clientX, clientY) {
     mouseVector.x = ((clientX - rect.left) / rect.width) * 2 - 1;
     mouseVector.y = -((clientY - rect.top) / rect.height) * 2 + 1;
     raycaster.setFromCamera(mouseVector, camera);
-    
-    // IMPORTANT FIX: Ensure raycast ONLY hits the base chassis meshes, preventing it from 
-    // accidentally targeting the transparent paint shell child nodes.
     const intersects = raycaster.intersectObjects(paintableMeshes, false);
     return intersects.length > 0 ? intersects[0] : null;
 }
@@ -459,13 +491,16 @@ function refreshLivePreview() {
     if (!liveDecalHitData) return;
     const rotVal = parseInt(ui.decalRot.value);
     const sizeVal = parseInt(ui.decalSize.value) / 100;
-    projectStamp(liveDecalHitData.point, liveDecalHitData.normal, rotVal, sizeVal, ui.decalType.value, currentColor, globalRenderOrder + 50, true);
+    
+    // Fix: Now correctly uses the activeDecalType variable instead of the missing element
+    projectStamp(liveDecalHitData.point, liveDecalHitData.normal, rotVal, sizeVal, activeDecalType, currentColor, globalRenderOrder + 50, true);
 }
 
 // --- Interaction Core (Smooth Lines & Taps) ---
 let touchStartPos = new THREE.Vector2();
 let lastScreenPos = new THREE.Vector2();
 let gestureMoved = false;
+let lastTapTime = 0; 
 
 domCanvas.addEventListener('pointerdown', (e) => {
     if (!e.isPrimary || e.target.closest('#control-center') || e.target.closest('.top-navbar') || e.target.closest('.camera-navbar')) return;
@@ -524,10 +559,25 @@ domCanvas.addEventListener('pointerup', (e) => {
     if (!e.isPrimary) return;
     isPainting = false;
     controls.enabled = (currentMode !== 'brush' && currentMode !== 'decal'); 
-
+    
     if (currentMode === 'decal') controls.enabled = true; 
 
-    if (!gestureMoved && currentMode === 'bucket') {
+    const currentTime = Date.now();
+    const isDoubleTap = (currentTime - lastTapTime) < 300;
+    lastTapTime = currentTime;
+
+    if (isDoubleTap && currentMode === 'decal' && liveDecalHitData && !gestureMoved) {
+        const rotVal = parseInt(ui.decalRot.value);
+        const sizeVal = parseInt(ui.decalSize.value) / 100;
+
+        // Fix: Use activeDecalType for the stamp commit too
+        const meshes = projectStamp(liveDecalHitData.point, liveDecalHitData.normal, rotVal, sizeVal, activeDecalType, currentColor, globalRenderOrder, false);
+        stampHistory.push({ point: liveDecalHitData.point.clone(), normal: liveDecalHitData.normal.clone(), rot: rotVal, size: sizeVal, shape: activeDecalType, color: currentColor, zIndex: globalRenderOrder });
+        
+        actionHistory.push({ type: 'decal', meshes: meshes });
+        globalRenderOrder++; 
+    } 
+    else if (!gestureMoved && currentMode === 'bucket') {
         const hit = getIntersection(e.clientX, e.clientY);
         if (hit) {
             actionHistory.push({ type: 'bucket', mesh: hit.object, oldColor: hit.object.material.color.getHex() });
@@ -540,10 +590,9 @@ ui.commitDecalBtn.addEventListener('click', () => {
     if (currentMode === 'decal' && liveDecalHitData) {
         const rotVal = parseInt(ui.decalRot.value);
         const sizeVal = parseInt(ui.decalSize.value) / 100;
-        const targetShape = ui.decalType.value;
-
-        const meshes = projectStamp(liveDecalHitData.point, liveDecalHitData.normal, rotVal, sizeVal, targetShape, currentColor, globalRenderOrder, false);
-        stampHistory.push({ point: liveDecalHitData.point.clone(), normal: liveDecalHitData.normal.clone(), rot: rotVal, size: sizeVal, shape: targetShape, color: currentColor, zIndex: globalRenderOrder });
+        
+        const meshes = projectStamp(liveDecalHitData.point, liveDecalHitData.normal, rotVal, sizeVal, activeDecalType, currentColor, globalRenderOrder, false);
+        stampHistory.push({ point: liveDecalHitData.point.clone(), normal: liveDecalHitData.normal.clone(), rot: rotVal, size: sizeVal, shape: activeDecalType, color: currentColor, zIndex: globalRenderOrder });
         
         actionHistory.push({ type: 'decal', meshes: meshes });
         globalRenderOrder++; 
@@ -590,7 +639,6 @@ ui.resetBtn.addEventListener('click', () => {
 const loader = new THREE.GLTFLoader();
 const textureLoader = new THREE.TextureLoader();
 
-// Load the base Ambient Occlusion map separately so the bucket fill keeps its shading
 const baseTexture = textureLoader.load('textures/Livery_baseColor.png');
 baseTexture.flipY = false;
 baseTexture.encoding = THREE.sRGBEncoding;
@@ -610,7 +658,6 @@ loader.load('scene.gltf', (gltf) => {
                     const matName = node.material.name || 'unnamed';
                     const groupKey = parentId + "_" + matName;
                     
-                    // Apply base model texture
                     if (!modelCache[groupKey]) {
                         modelCache[groupKey] = node.material.clone();
                         modelCache[groupKey].color.setHex(0xffffff); 
@@ -620,12 +667,8 @@ loader.load('scene.gltf', (gltf) => {
                     node.material.needsUpdate = true;
                 }
                 
-                // Track this as a valid target for bucket fills and decal projection
                 paintableMeshes.push(node); 
                 
-                // --- THE FIX: The Clear Coat Paint Shell ---
-                // Generates an invisible duplicate mesh that hovers over everything, including decals.
-                // The brush tool now strictly draws to THIS layer.
                 const paintShell = new THREE.Mesh(
                     node.geometry,
                     new THREE.MeshStandardMaterial({
@@ -633,13 +676,12 @@ loader.load('scene.gltf', (gltf) => {
                         transparent: true,
                         depthWrite: false,
                         polygonOffset: true,
-                        polygonOffsetFactor: -8, // Pulls the brush strokes in front of the decals (-4)
+                        polygonOffsetFactor: -8, 
                         polygonOffsetUnits: -8,
                         roughness: 0.2
                     })
                 );
                 
-                // Parent the shell to the original node so it perfectly mimics all scaling/rotation
                 node.add(paintShell);
             }
         }
