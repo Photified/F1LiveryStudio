@@ -47,7 +47,13 @@ function updateCameraTo(view) {
 }
 updateCameraTo('iso'); 
 
-// --- 2. Advanced Layer Stacking Framework ---
+// --- 2. Advanced Layer & Canvas Framework ---
+const paintCanvas = document.createElement('canvas');
+paintCanvas.width = 2048; paintCanvas.height = 2048;
+const pCtx = paintCanvas.getContext('2d');
+const canvasTexture = new THREE.CanvasTexture(paintCanvas);
+canvasTexture.flipY = false;
+
 const mainDecalGroup = new THREE.Group();
 const mirrorDecalGroup = new THREE.Group();
 scene.add(mainDecalGroup);
@@ -57,14 +63,28 @@ let globalRenderOrder = 1;
 let stampHistory = []; 
 const actionHistory = []; 
 
-// --- 3. UI, State, & Modal Handlers ---
+const baseMapImage = new Image();
+baseMapImage.src = 'textures/Livery_baseColor.png';
+baseMapImage.onload = () => resetToTextureDefaults();
+
+function resetToTextureDefaults() {
+    pCtx.clearRect(0, 0, 2048, 2048);
+    pCtx.drawImage(baseMapImage, 0, 0, 2048, 2048);
+    canvasTexture.needsUpdate = true;
+}
+
+function saveCanvasState() {
+    if (actionHistory.length > 15) actionHistory.shift();
+    actionHistory.push({ type: 'canvas', data: pCtx.getImageData(0, 0, 2048, 2048) });
+}
+
+// --- 3. UI & State Management ---
 let currentMode = 'camera'; 
 let activeShape = 'circle'; 
 let activeSize = 3; 
 let activeCamView = 'free';
 let isPainting = false;
 let paintableMeshes = []; 
-
 let liveDecalHitData = null;
 
 const ui = {
@@ -122,21 +142,15 @@ ui.brush.addEventListener('click', () => setMode('brush'));
 ui.bucket.addEventListener('click', () => setMode('bucket'));
 ui.decal.addEventListener('click', () => setMode('decal'));
 
-// Eyedropper Desktop / Mobile Hybrid Logic
 ui.sampler.addEventListener('click', async () => {
     if (window.EyeDropper) {
-        // Desktop: Use native browser eyedropper
-        const eyeDropper = new EyeDropper();
         try {
-            const result = await eyeDropper.open();
+            const result = await new EyeDropper().open();
             ui.color.value = result.sRGBHex;
-        } catch (e) {
-            // User canceled eyedropper
-        }
+        } catch (e) {}
     } else {
-        // Mobile: Activate 3D surface picker and show toast
         setMode('sampler');
-        ui.toast.style.display = 'block';
+        if(ui.toast) ui.toast.style.display = 'block';
     }
 });
 
@@ -153,7 +167,6 @@ document.querySelectorAll('.cam-btn').forEach(btn => {
     btn.addEventListener('click', (e) => {
         document.querySelectorAll('.cam-btn').forEach(b => b.classList.remove('active'));
         e.target.classList.add('active');
-        
         const view = e.target.getAttribute('data-cam');
         activeCamView = view;
         ui.mirrorBtn.style.display = (view === 'side') ? 'block' : 'none';
@@ -174,10 +187,9 @@ ui.decalSize.addEventListener('input', updateLiveDecalPreview);
 ui.decalRot.addEventListener('input', updateLiveDecalPreview);
 ui.color.addEventListener('input', updateLiveDecalPreview);
 
-// --- 4. 2D Graphical Vector Drawer ---
+// --- 4. Geometry and Texture Generators ---
 function drawShape(ctx, x, y, size, type, color) {
     ctx.save(); ctx.fillStyle = color; ctx.translate(x, y);
-
     if (type === 'star') {
         ctx.beginPath();
         for (let i = 0; i < 5; i++) {
@@ -248,6 +260,24 @@ function getIntersection(clientX, clientY) {
     return intersects.length > 0 ? intersects[0] : null;
 }
 
+// Optimized 2D UV Painting Function (Crash-Proof Brush)
+function executeUVBrush(hit) {
+    if (!hit.uv) return;
+    const x = hit.uv.x * 2048;
+    const y = hit.uv.y * 2048;
+    pCtx.fillStyle = ui.color.value;
+    
+    if (activeShape === 'circle') {
+        pCtx.beginPath();
+        pCtx.arc(x, y, activeSize * 3, 0, Math.PI * 2);
+        pCtx.fill();
+    } else {
+        const span = activeSize * 5;
+        pCtx.fillRect(x - span/2, y - span/2, span, span);
+    }
+}
+
+// 3D Geometry Function (For Decals Only)
 function projectStamp(point, normal, rotation, size, shape, color, zIndex, isPreview = false, isMirrored = false) {
     const dummy = new THREE.Object3D();
     dummy.position.copy(point);
@@ -281,6 +311,7 @@ function projectStamp(point, normal, rotation, size, shape, color, zIndex, isPre
     return meshes; 
 }
 
+let activeGhostMeshes = [];
 function clearGhosts() {
     activeGhostMeshes.forEach(mesh => {
         if (mesh.parent) mesh.parent.remove(mesh);
@@ -296,44 +327,25 @@ function refreshLivePreview() {
     projectStamp(liveDecalHitData.point, liveDecalHitData.normal, rotVal, sizeVal, ui.decalType.value, ui.color.value, globalRenderOrder + 50, true);
 }
 
-// --- Dynamic Distance Linear Path Interpolation Engine ---
-function applyInterpolatedStroke(pStart, pEnd, nStart, nEnd) {
-    const dist = pStart.distanceTo(pEnd);
-    const stepSize = (activeSize / 100) * 0.125; 
-    const steps = Math.max(1, Math.floor(dist / stepSize));
-
-    for (let i = 1; i <= steps; i++) {
-        const t = i / steps;
-        const currentPoint = new THREE.Vector3().lerpVectors(pStart, pEnd, t);
-        const currentNormal = new THREE.Vector3().lerpVectors(nStart, nEnd, t).normalize();
-
-        const meshes = projectStamp(currentPoint, currentNormal, 0, activeSize / 100, activeShape, ui.color.value, globalRenderOrder);
-        currentStrokeMeshes.push(...meshes);
-        stampHistory.push({ point: currentPoint, normal: currentNormal, rot: 0, size: activeSize / 100, shape: activeShape, color: ui.color.value, zIndex: globalRenderOrder });
-    }
-}
-
-// Tap vs Drag Interaction Logic Routing
+// --- Interaction Core (Smooth Lines & Taps) ---
 let touchStartPos = new THREE.Vector2();
-let lastHitData = null;
+let lastScreenPos = new THREE.Vector2();
 let gestureMoved = false;
-let currentStrokeMeshes = [];
 
 domCanvas.addEventListener('pointerdown', (e) => {
     if (!e.isPrimary || e.target.closest('#control-center') || e.target.closest('.top-navbar')) return;
     touchStartPos.set(e.clientX, e.clientY);
+    lastScreenPos.set(e.clientX, e.clientY);
     gestureMoved = false;
 
     const hit = getIntersection(e.clientX, e.clientY);
     if (!hit) return;
 
-    // Mobile Fallback: 3D Surface Color Picker Extractor System
     if (currentMode === 'sampler') {
         if (hit.object && hit.object.material && hit.object.material.color) {
-            const sampledHex = "#" + hit.object.material.color.getHexString();
-            ui.color.value = sampledHex;
-            ui.toast.style.display = 'none'; // Hide toast
-            setMode('camera'); // Return to viewport navigation automatically
+            ui.color.value = "#" + hit.object.material.color.getHexString();
+            if(ui.toast) ui.toast.style.display = 'none';
+            setMode('camera'); 
         }
         return;
     }
@@ -341,12 +353,9 @@ domCanvas.addEventListener('pointerdown', (e) => {
     if (currentMode === 'brush') {
         controls.enabled = false; 
         isPainting = true;
-        currentStrokeMeshes = [];
-        
-        const meshes = projectStamp(hit.point, hit.face.normal, 0, activeSize / 100, activeShape, ui.color.value, globalRenderOrder);
-        currentStrokeMeshes.push(...meshes);
-        stampHistory.push({ point: hit.point, normal: hit.face.normal, rot: 0, size: activeSize / 100, shape: activeShape, color: ui.color.value, zIndex: globalRenderOrder });
-        lastHitData = { point: hit.point.clone(), normal: hit.face.normal.clone() };
+        saveCanvasState();
+        executeUVBrush(hit);
+        canvasTexture.needsUpdate = true;
     } else if (currentMode === 'decal') {
         controls.enabled = false; 
         liveDecalHitData = { point: hit.point.clone(), normal: hit.face.normal.clone() };
@@ -357,20 +366,32 @@ domCanvas.addEventListener('pointerdown', (e) => {
 
 domCanvas.addEventListener('pointermove', (e) => {
     if (!e.isPrimary) return;
-    if (touchStartPos.distanceTo(new THREE.Vector2(e.clientX, e.clientY)) > 8) {
-        gestureMoved = true;
-    }
+    const currentPos = new THREE.Vector2(e.clientX, e.clientY);
+    if (touchStartPos.distanceTo(currentPos) > 8) gestureMoved = true;
 
-    const hit = getIntersection(e.clientX, e.clientY);
-    if (!hit) return;
+    if (currentMode === 'brush' && isPainting) {
+        // Screen-Space Interpolation Engine for Perfectly Smooth Brush Lines
+        const dist = lastScreenPos.distanceTo(currentPos);
+        const steps = Math.max(1, Math.floor(dist / 3)); // Raycast every 3 screen pixels skipped
 
-    if (currentMode === 'brush' && isPainting && lastHitData) {
-        applyInterpolatedStroke(lastHitData.point, hit.point, lastHitData.normal, hit.face.normal);
-        lastHitData = { point: hit.point.clone(), normal: hit.face.normal.clone() };
+        for (let i = 1; i <= steps; i++) {
+            const t = i / steps;
+            const lerpX = lastScreenPos.x + (currentPos.x - lastScreenPos.x) * t;
+            const lerpY = lastScreenPos.y + (currentPos.y - lastScreenPos.y) * t;
+            
+            const hit = getIntersection(lerpX, lerpY);
+            if (hit) executeUVBrush(hit);
+        }
+        canvasTexture.needsUpdate = true;
+        lastScreenPos.copy(currentPos);
+
     } else if (currentMode === 'decal' && liveDecalHitData) {
-        liveDecalHitData = { point: hit.point.clone(), normal: hit.face.normal.clone() };
-        clearGhosts();
-        refreshLivePreview();
+        const hit = getIntersection(e.clientX, e.clientY);
+        if (hit) {
+            liveDecalHitData = { point: hit.point.clone(), normal: hit.face.normal.clone() };
+            clearGhosts();
+            refreshLivePreview();
+        }
     }
 });
 
@@ -379,16 +400,7 @@ domCanvas.addEventListener('pointerup', (e) => {
     isPainting = false;
     controls.enabled = (currentMode !== 'brush' && currentMode !== 'decal'); 
 
-    if (currentMode === 'brush' && currentStrokeMeshes.length > 0) {
-        actionHistory.push({ type: 'stroke', meshes: currentStrokeMeshes });
-        globalRenderOrder++;
-        lastHitData = null;
-        return;
-    }
-
-    if (currentMode === 'decal') {
-        controls.enabled = true; 
-    }
+    if (currentMode === 'decal') controls.enabled = true; 
 
     if (!gestureMoved && currentMode === 'bucket') {
         const hit = getIntersection(e.clientX, e.clientY);
@@ -408,7 +420,7 @@ ui.commitDecalBtn.addEventListener('click', () => {
         const meshes = projectStamp(liveDecalHitData.point, liveDecalHitData.normal, rotVal, sizeVal, targetShape, ui.color.value, globalRenderOrder, false, false);
         stampHistory.push({ point: liveDecalHitData.point.clone(), normal: liveDecalHitData.normal.clone(), rot: rotVal, size: sizeVal, shape: targetShape, color: ui.color.value, zIndex: globalRenderOrder });
         
-        actionHistory.push({ type: 'stroke', meshes: meshes });
+        actionHistory.push({ type: 'decal', meshes: meshes });
         globalRenderOrder++; 
         
         clearGhosts();
@@ -416,8 +428,30 @@ ui.commitDecalBtn.addEventListener('click', () => {
     }
 });
 
-// --- Action Command Framework ---
+// --- Action Commands ---
 ui.mirrorBtn.addEventListener('click', () => {
+    if (activeCamView !== 'side') return;
+    
+    // 1. Mirror Canvas Textures (Brush Strokes)
+    saveCanvasState();
+    const halfWidth = 1024; const height = 2048;
+    const leftSide = pCtx.getImageData(0, 0, halfWidth, height);
+    const rightSide = pCtx.getImageData(halfWidth, 0, halfWidth, height);
+    
+    for (let y = 0; y < height; y++) {
+        for (let x = 0; x < halfWidth; x++) {
+            const srcIdx = (y * halfWidth + x) * 4;
+            const tgtIdx = (y * halfWidth + (halfWidth - 1 - x)) * 4;
+            rightSide.data[tgtIdx] = leftSide.data[srcIdx];
+            rightSide.data[tgtIdx+1] = leftSide.data[srcIdx+1];
+            rightSide.data[tgtIdx+2] = leftSide.data[srcIdx+2];
+            rightSide.data[tgtIdx+3] = leftSide.data[srcIdx+3];
+        }
+    }
+    pCtx.putImageData(rightSide, halfWidth, 0);
+    canvasTexture.needsUpdate = true;
+
+    // 2. Mirror 3D Decal Meshes
     while(mirrorDecalGroup.children.length > 0) {
         const child = mirrorDecalGroup.children[0];
         child.geometry.dispose();
@@ -433,23 +467,28 @@ ui.mirrorBtn.addEventListener('click', () => {
 ui.undoBtn.addEventListener('click', () => {
     if (actionHistory.length > 0) {
         const lastAction = actionHistory.pop();
-        if (lastAction.type === 'bucket') {
+        if (lastAction.type === 'canvas') {
+            pCtx.putImageData(lastAction.data, 0, 0);
+            canvasTexture.needsUpdate = true;
+        } else if (lastAction.type === 'bucket') {
             lastAction.mesh.material.color.setHex(lastAction.oldColor);
-        } else if (lastAction.type === 'stroke') {
+        } else if (lastAction.type === 'decal') {
             lastAction.meshes.forEach(mesh => {
                 mesh.geometry.dispose();
                 if (mesh.parent) mesh.parent.remove(mesh);
             });
+            stampHistory.pop(); // Remove from mirror history
         }
     }
 });
 
 ui.resetBtn.addEventListener('click', () => {
+    saveCanvasState();
+    resetToTextureDefaults();
     clearGhosts();
     while(mainDecalGroup.children.length > 0) { mainDecalGroup.children[0].geometry.dispose(); mainDecalGroup.remove(mainDecalGroup.children[0]); }
     while(mirrorDecalGroup.children.length > 0) { mirrorDecalGroup.children[0].geometry.dispose(); mirrorDecalGroup.remove(mirrorDecalGroup.children[0]); }
     
-    actionHistory.length = 0;
     stampHistory.length = 0;
     globalRenderOrder = 1;
     liveDecalHitData = null;
@@ -459,7 +498,7 @@ ui.resetBtn.addEventListener('click', () => {
     });
 });
 
-// --- 6. GLTF Car Asset Node Traverser ---
+// --- 6. GLTF Car Asset Loader ---
 const loader = new THREE.GLTFLoader();
 const modelCache = {}; 
 
@@ -479,6 +518,7 @@ loader.load('scene.gltf', (gltf) => {
                     if (!modelCache[groupKey]) {
                         modelCache[groupKey] = node.material.clone();
                         modelCache[groupKey].color.setHex(0xffffff); 
+                        modelCache[groupKey].map = canvasTexture; 
                     }
                     node.material = modelCache[groupKey];
                     node.material.needsUpdate = true;
@@ -492,7 +532,7 @@ loader.load('scene.gltf', (gltf) => {
     scene.add(carModel);
 });
 
-// --- 7. Main Core Render Animation Frame Loop ---
+// --- 7. Animation Loop ---
 window.addEventListener('resize', () => {
     camera.aspect = window.innerWidth / window.innerHeight; camera.updateProjectionMatrix(); renderer.setSize(window.innerWidth, window.innerHeight);
 });
