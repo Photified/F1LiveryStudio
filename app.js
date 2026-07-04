@@ -177,9 +177,24 @@ document.querySelectorAll('.decal-btn').forEach(btn => {
     });
 });
 
-// Color System Logic (Native + Recent)
-// Added McLaren Papaya, Aston Martin Green, Mercedes Teal, and Racing Yellow
-let recentColors = ['#e10600', '#ffffff', '#000000', '#007aff', '#ff8700', '#006f62', '#00a19c', '#ffd500'];
+// Dynamic CSS styling to ensure the massive color palette wraps cleanly
+ui.recentColorsWrap.style.flexWrap = 'wrap';
+ui.recentColorsWrap.style.justifyContent = 'center';
+ui.recentColorsWrap.style.padding = '4px 0';
+ui.recentColorsWrap.style.maxHeight = '90px';
+ui.recentColorsWrap.style.overflowY = 'auto';
+
+// Full Rainbow Spectrum: Light, Standard, Dark + Monochrome
+let recentColors = [
+    '#ffcccc', '#e10600', '#800000', // Red
+    '#ffe5cc', '#ff8700', '#cc6600', // Orange
+    '#ffffcc', '#ffd500', '#808000', // Yellow
+    '#ccffcc', '#00a19c', '#006600', // Green
+    '#cce5ff', '#007aff', '#000080', // Blue
+    '#e5ccff', '#4b0082', '#29004d', // Indigo
+    '#ffccff', '#ee82ee', '#800080', // Violet
+    '#ffffff', '#808080', '#000000'  // Monochrome
+];
 
 function renderRecentColors() {
     ui.recentColorsWrap.innerHTML = '';
@@ -206,8 +221,7 @@ ui.nativeColorPicker.addEventListener('input', (e) => {
 ui.nativeColorPicker.addEventListener('change', () => {
     if (!recentColors.includes(currentColor)) {
         recentColors.unshift(currentColor);
-        // Increased from 5 to 12 max swatches
-        if (recentColors.length > 12) recentColors.pop(); 
+        if (recentColors.length > 36) recentColors.pop(); 
         renderRecentColors();
     }
 });
@@ -628,51 +642,59 @@ baseTexture.encoding = THREE.sRGBEncoding;
 
 const modelCache = {}; 
 
-loader.load('scene.gltf', (gltf) => {
-    const carModel = gltf.scene;
-    carModel.traverse((node) => {
-        if (node.isMesh) {
-            node.castShadow = true; node.receiveShadow = true;
-            const id = (node.name + (node.material ? node.material.name : '')).toLowerCase();
-            
-            if (!id.includes('wheel') && !id.includes('tire') && !id.includes('glass')) {
-                if (node.material) {
-                    const parentId = node.parent ? node.parent.uuid : 'root';
-                    const matName = node.material.name || 'unnamed';
-                    const groupKey = parentId + "_" + matName;
-                    
-                    if (!modelCache[groupKey]) {
-                        modelCache[groupKey] = node.material.clone();
-                        modelCache[groupKey].color.setHex(0xffffff); 
-                        modelCache[groupKey].map = baseTexture; 
+loader.load(
+    'scene.gltf', 
+    (gltf) => {
+        const carModel = gltf.scene;
+        carModel.traverse((node) => {
+            if (node.isMesh) {
+                node.castShadow = true; node.receiveShadow = true;
+                const id = (node.name + (node.material ? node.material.name : '')).toLowerCase();
+                
+                if (!id.includes('wheel') && !id.includes('tire') && !id.includes('glass')) {
+                    if (node.material) {
+                        const parentId = node.parent ? node.parent.uuid : 'root';
+                        const matName = node.material.name || 'unnamed';
+                        const groupKey = parentId + "_" + matName;
+                        
+                        if (!modelCache[groupKey]) {
+                            modelCache[groupKey] = node.material.clone();
+                            modelCache[groupKey].color.setHex(0xffffff); 
+                            modelCache[groupKey].map = baseTexture; 
+                        }
+                        node.material = modelCache[groupKey];
+                        node.material.needsUpdate = true;
                     }
-                    node.material = modelCache[groupKey];
-                    node.material.needsUpdate = true;
+                    
+                    paintableMeshes.push(node); 
+                    
+                    const paintShell = new THREE.Mesh(
+                        node.geometry,
+                        new THREE.MeshStandardMaterial({
+                            map: canvasTexture,
+                            transparent: true,
+                            depthWrite: false,
+                            polygonOffset: true,
+                            polygonOffsetFactor: -8, 
+                            polygonOffsetUnits: -8,
+                            roughness: 0.2
+                        })
+                    );
+                    
+                    node.add(paintShell);
                 }
-                
-                paintableMeshes.push(node); 
-                
-                const paintShell = new THREE.Mesh(
-                    node.geometry,
-                    new THREE.MeshStandardMaterial({
-                        map: canvasTexture,
-                        transparent: true,
-                        depthWrite: false,
-                        polygonOffset: true,
-                        polygonOffsetFactor: -8, 
-                        polygonOffsetUnits: -8,
-                        roughness: 0.2
-                    })
-                );
-                
-                node.add(paintShell);
             }
-        }
-    });
-    const box = new THREE.Box3().setFromObject(carModel);
-    carModel.position.sub(box.getCenter(new THREE.Vector3()));
-    scene.add(carModel);
-});
+        });
+        const box = new THREE.Box3().setFromObject(carModel);
+        carModel.position.sub(box.getCenter(new THREE.Vector3()));
+        scene.add(carModel);
+    },
+    undefined,
+    (error) => {
+        console.error('GLTF Load Error:', error);
+        alert("Failed to load 'scene.gltf'. Ensure the file name is exactly 'scene.gltf' (all lowercase) in your GitHub repository. GitHub Pages is case-sensitive!");
+    }
+);
 
 // --- 7. Animation Loop ---
 window.addEventListener('resize', () => {
