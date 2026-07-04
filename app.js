@@ -27,7 +27,7 @@ controls.dampingFactor = 0.05;
 
 // Dynamic Camera Framing (Zoom & Pan adjustments for mobile UI clearance)
 function getCamDist() { return window.innerWidth < 650 ? 25 : 12; }
-function getCamOffsetY() { return window.innerWidth < 650 ? -1.2 : -0.2; }
+function getCamOffsetY() { return window.innerWidth < 650 ? -3 : -0.2; }
 
 controls.target.set(0, getCamOffsetY(), 0); 
 
