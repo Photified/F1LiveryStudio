@@ -39,7 +39,9 @@ controls.enableDamping = true;
 controls.dampingFactor = 0.05;
 
 function getCamDist() { return window.innerWidth < 650 ? 25 : 10; }
-function getCamOffsetY() { return window.innerWidth < 650 ? -3.5 : -0.2; }
+
+// FIXED: Adjust offset downward so the car appears higher on screen!
+function getCamOffsetY() { return window.innerWidth < 650 ? -4.5 : -1.2; }
 
 controls.target.set(0, getCamOffsetY(), 0); 
 let sideToggleRight = true; 
@@ -61,9 +63,11 @@ function updateCameraTo(view) {
         side: new THREE.Vector3(sideToggleRight ? d : -d, 2.5, 0),
         front: new THREE.Vector3(0, 2.5, d),
         back: new THREE.Vector3(0, 2.5, -d),
-        top: new THREE.Vector3(0, d, cZ),
+        // FIXED: Zoomed out Top view by increasing Y multiplier to 1.8
+        top: new THREE.Vector3(0, d * 1.8, cZ),
         iso: new THREE.Vector3(-d*0.7, 3.0, d*0.7)
     };
+    
     if (views[view]) {
         camera.position.copy(views[view]);
         camera.lookAt(0, yOff, tZ);
@@ -128,7 +132,7 @@ let currentMode = 'camera';
 let activeShape = 'circle'; 
 let activeSize = 3; 
 let activeCamView = 'free';
-let activeDecalType = 'solid-stripe';
+let activeDecalType = 'gradient-streak';
 let isPainting = false;
 let isPlacingDecal = false; 
 let paintableMeshes = []; 
@@ -305,7 +309,63 @@ function drawShape(ctx, x, y, size, type, color) {
     const solidColor = `rgba(${r},${g},${b},1)`;
     const clearColor = `rgba(${r},${g},${b},0)`;
 
-    if (type === 'solid-stripe') {
+    // --- NEW LONG GRADIENT SHAPES ---
+    if (type === 'gradient-streak') {
+        const grad = ctx.createLinearGradient(-size, 0, size, 0);
+        grad.addColorStop(0, solidColor);
+        grad.addColorStop(1, clearColor);
+        ctx.fillStyle = grad;
+        ctx.fillRect(-size, -size/3, size*2, size/1.5);
+    }
+    else if (type === 'flow-tri') {
+        const grad = ctx.createLinearGradient(-size, 0, size, 0);
+        grad.addColorStop(0, solidColor);
+        grad.addColorStop(1, clearColor);
+        ctx.fillStyle = grad;
+        ctx.beginPath();
+        ctx.moveTo(-size, size/2.5);
+        ctx.lineTo(size, 0);
+        ctx.lineTo(-size, -size/2.5);
+        ctx.closePath();
+        ctx.fill();
+    }
+    else if (type === 'fade-dots-flow') {
+        ctx.fillStyle = solidColor;
+        for (let i = 0; i < 7; i++) {
+            ctx.globalAlpha = Math.max(0, 1 - (i * 0.14)); // Fades out
+            const px = -size * 0.8 + (i * size * 0.28);
+            const rCircle = size * 0.25 * (1 - i * 0.08); // Shrinks slightly
+            ctx.beginPath(); 
+            ctx.arc(px, 0, rCircle, 0, Math.PI*2); 
+            ctx.fill();
+        }
+        ctx.globalAlpha = 1.0;
+    }
+    else if (type === 'aero-wing') {
+        const grad = ctx.createLinearGradient(-size, 0, size, 0);
+        grad.addColorStop(0, clearColor);
+        grad.addColorStop(0.3, solidColor);
+        grad.addColorStop(1, clearColor);
+        ctx.fillStyle = grad;
+        ctx.beginPath();
+        ctx.moveTo(-size, size/1.5);
+        ctx.quadraticCurveTo(0, -size/2, size, -size/4);
+        ctx.quadraticCurveTo(0, 0, -size, size/1.5);
+        ctx.fill();
+    }
+    else if (type === 'blade-fade') {
+        const grad = ctx.createLinearGradient(-size, 0, size, 0);
+        grad.addColorStop(0, solidColor);
+        grad.addColorStop(1, clearColor);
+        ctx.fillStyle = grad;
+        ctx.beginPath();
+        ctx.moveTo(-size, size/3);
+        ctx.lineTo(size, -size/6);
+        ctx.lineTo(-size, -size/3);
+        ctx.fill();
+    }
+    // --- EXISTING SHAPES ---
+    else if (type === 'solid-stripe') {
         ctx.fillStyle = solidColor;
         ctx.fillRect(-size/2, -size*2, size, size*4);
     } 

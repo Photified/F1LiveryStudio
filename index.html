@@ -14,15 +14,15 @@
         }
         
         .top-navbar {
-            width: 100%; height: 60px; background: #1a1a1a;
+            width: 100%; height: 80px; background: #1a1a1a;
             border-bottom: 1px solid #2a2a2a; display: flex; 
             align-items: center; justify-content: space-between;
             padding: 0 15px; box-sizing: border-box; z-index: 50;
         }
         
-        .nav-actions { display: flex; gap: 8px; width: 72px; }
-        .logo-container { flex-grow: 1; text-align: center; color: #e10600; font-weight: 900; font-size: 18px; font-style: italic; letter-spacing: 1px; }
-        .nav-right { width: 72px; display: flex; justify-content: flex-end; }
+        .nav-left { width: 120px; } /* Spacer for balance */
+        .logo-container { flex-grow: 1; text-align: center; color: #e10600; font-weight: 900; font-size: 26px; font-style: italic; letter-spacing: 1.5px; }
+        .nav-right { width: 120px; display: flex; gap: 8px; justify-content: flex-end; }
 
         .icon-btn {
             background: #2a2a2a; border: 1px solid #555; border-radius: 8px;
@@ -44,7 +44,7 @@
 
         /* -- STEP HELPER TOAST -- */
         #step-toast {
-            position: absolute; top: 125px; left: 50%; transform: translateX(-50%);
+            position: absolute; top: 145px; left: 50%; transform: translateX(-50%);
             background: rgba(225, 6, 0, 0.9); border: 1px solid #ff3b30; color: white;
             padding: 8px 16px; border-radius: 20px; font-size: 12px; font-weight: bold;
             letter-spacing: 0.5px; z-index: 40; pointer-events: none;
@@ -141,12 +141,11 @@
 <body>
 
     <div class="top-navbar">
-        <div class="nav-actions">
-            <button id="undoBtn" class="icon-btn" title="Undo">↩️</button>
-            <button id="resetBtn" class="icon-btn" title="Reset All">🗑️</button>
-        </div>
+        <div class="nav-left"></div>
         <div class="logo-container">🏎️ F1 LIVERY</div>
         <div class="nav-right">
+            <button id="undoBtn" class="icon-btn" title="Undo">↩️</button>
+            <button id="resetBtn" class="icon-btn" title="Reset All">🗑️</button>
             <button id="helpBtn" class="icon-btn" title="Settings & Help">⚙️</button>
         </div>
     </div>
@@ -236,7 +235,13 @@
 
         <div class="tool-group" id="decal-select-wrap" style="display: none;">
             <div id="decal-visual-picker" class="horizontal-scroll">
-                <button class="decal-btn active" data-shape="solid-stripe" title="Stripe"></button>
+                <button class="decal-btn active" data-shape="gradient-streak" title="Gradient Streak"></button>
+                <button class="decal-btn" data-shape="flow-tri" title="Flowing Triangle"></button>
+                <button class="decal-btn" data-shape="fade-dots-flow" title="Fading Flow Dots"></button>
+                <button class="decal-btn" data-shape="aero-wing" title="Aero Wing"></button>
+                <button class="decal-btn" data-shape="blade-fade" title="Blade Fade"></button>
+                
+                <button class="decal-btn" data-shape="solid-stripe" title="Stripe"></button>
                 <button class="decal-btn" data-shape="racing-stripes" title="Double Stripe"></button>
                 <button class="decal-btn" data-shape="fade-stripe" title="Fade Stripe"></button>
                 <button class="decal-btn" data-shape="chevron-sharp" title="Chevron"></button>
