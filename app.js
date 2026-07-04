@@ -25,9 +25,9 @@ const controls = new THREE.OrbitControls(camera, renderer.domElement);
 controls.enableDamping = true;
 controls.dampingFactor = 0.05;
 
-// Dynamic Camera Framing (Zoom & Pan adjustments for mobile UI clearance)
-function getCamDist() { return window.innerWidth < 650 ? 25 : 12; }
-function getCamOffsetY() { return window.innerWidth < 650 ? -3 : -0.2; }
+// Dynamic Camera Framing (Tuned aggressively to clear bottom mobile sheets)
+function getCamDist() { return window.innerWidth < 650 ? 25 : 10; }
+function getCamOffsetY() { return window.innerWidth < 650 ? -3.5 : -0.2; }
 
 controls.target.set(0, getCamOffsetY(), 0); 
 
@@ -35,12 +35,14 @@ function updateCameraTo(view) {
     if (view === 'free') return;
     const d = getCamDist();
     const yOff = getCamOffsetY();
+    
+    // Elevated height properties (2.5 - 3.0) clear the floor pans cleanly when looking downward
     const views = {
-        side: new THREE.Vector3(d, 0.5, 0),
-        front: new THREE.Vector3(0, 0.5, d),
-        back: new THREE.Vector3(0, 0.5, -d),
+        side: new THREE.Vector3(d, 2.5, 0),
+        front: new THREE.Vector3(0, 2.5, d),
+        back: new THREE.Vector3(0, 2.5, -d),
         top: new THREE.Vector3(0, d, 0),
-        iso: new THREE.Vector3(-d*0.7, d*0.5, d*0.7)
+        iso: new THREE.Vector3(-d*0.7, 3.0, d*0.7)
     };
     if (views[view]) {
         camera.position.copy(views[view]);
@@ -261,7 +263,6 @@ function getIntersection(clientX, clientY) {
     return intersects.length > 0 ? intersects[0] : null;
 }
 
-// Crash-Proof Brush Function 
 function executeUVBrush(hit) {
     if (!hit.uv) return;
     const x = hit.uv.x * 2048;
@@ -346,7 +347,7 @@ domCanvas.addEventListener('pointerdown', (e) => {
         isPainting = true;
         saveCanvasState();
         executeUVBrush(hit);
-        textureNeedsGPUUpdate = true; // Batches the upload to prevent crashes
+        textureNeedsGPUUpdate = true; 
     } else if (currentMode === 'decal') {
         controls.enabled = false; 
         liveDecalHitData = { point: hit.point.clone(), normal: hit.face.normal.clone() };
@@ -361,7 +362,6 @@ domCanvas.addEventListener('pointermove', (e) => {
     if (touchStartPos.distanceTo(currentPos) > 8) gestureMoved = true;
 
     if (currentMode === 'brush' && isPainting) {
-        // High-Speed Math Engine: Instantly fills dots between fast finger swipes
         const dist = lastScreenPos.distanceTo(currentPos);
         const steps = Math.max(1, Math.floor(dist / 3)); 
 
@@ -423,7 +423,6 @@ ui.commitDecalBtn.addEventListener('click', () => {
 ui.mirrorBtn.addEventListener('click', () => {
     if (activeCamView !== 'side') return;
     
-    // 1. Mirror Canvas Textures (Brush Strokes)
     saveCanvasState();
     const halfWidth = 1024; const height = 2048;
     const leftSide = pCtx.getImageData(0, 0, halfWidth, height);
@@ -442,7 +441,6 @@ ui.mirrorBtn.addEventListener('click', () => {
     pCtx.putImageData(rightSide, halfWidth, 0);
     textureNeedsGPUUpdate = true;
 
-    // 2. Mirror 3D Decal Meshes
     while(mirrorDecalGroup.children.length > 0) {
         const child = mirrorDecalGroup.children[0];
         child.geometry.dispose();
@@ -523,12 +521,11 @@ loader.load('scene.gltf', (gltf) => {
     scene.add(carModel);
 });
 
-// --- 7. Animation Loop (TEXTURE THROTTLER) ---
+// --- 7. Animation Loop ---
 window.addEventListener('resize', () => {
     camera.aspect = window.innerWidth / window.innerHeight; 
     camera.updateProjectionMatrix(); 
     renderer.setSize(window.innerWidth, window.innerHeight);
-    // Dynamically update framing constraints on orientation change
     controls.target.set(0, getCamOffsetY(), 0);
 });
 
