@@ -1,7 +1,7 @@
 // --- 1. Scene, Camera, & Renderer ---
 const container = document.getElementById('viewport3d');
 const scene = new THREE.Scene();
-scene.background = new THREE.Color('#ffffff'); 
+scene.background = new THREE.Color('#121212'); // Dark fallback in case camera clips walls
 
 const camera = new THREE.PerspectiveCamera(45, window.innerWidth / window.innerHeight, 0.1, 100);
 const renderer = new THREE.WebGLRenderer({ antialias: true, alpha: true });
@@ -11,7 +11,8 @@ renderer.shadowMap.enabled = true;
 renderer.shadowMap.type = THREE.PCFSoftShadowMap; 
 renderer.outputEncoding = THREE.sRGBEncoding; 
 renderer.toneMapping = THREE.ACESFilmicToneMapping;
-renderer.toneMappingExposure = 1.0;
+// FIXED: Lowered exposure from 1.0 to 0.85 to prevent the white room from overexposing!
+renderer.toneMappingExposure = 0.85; 
 
 container.appendChild(renderer.domElement);
 
@@ -20,84 +21,84 @@ const pmremGenerator = new THREE.PMREMGenerator(renderer);
 scene.environment = pmremGenerator.fromScene(new THREE.RoomEnvironment(), 0.04).texture;
 
 // Fallback Lights
-scene.add(new THREE.AmbientLight(0xffffff, 0.3));
+scene.add(new THREE.AmbientLight(0xffffff, 0.4)); // Lowered ambient light
 
 // Top spotlight inside the booth
-const topLight = new THREE.DirectionalLight(0xffffff, 0.7);
-topLight.position.set(0, 15, 0);
+const topLight = new THREE.DirectionalLight(0xffffff, 0.6); // Lowered directional intensity
+topLight.position.set(0, 18, 0);
 topLight.castShadow = true;
 topLight.shadow.mapSize.width = 2048;
 topLight.shadow.mapSize.height = 2048;
+// Expanded shadow bounds to cover the larger room
 topLight.shadow.camera.near = 0.5;
-topLight.shadow.camera.far = 25;
-topLight.shadow.camera.left = -15;
-topLight.shadow.camera.right = 15;
-topLight.shadow.camera.top = 15;
-topLight.shadow.camera.bottom = -15;
-topLight.shadow.bias = -0.0001;
+topLight.shadow.camera.far = 40;
+topLight.shadow.camera.left = -25;
+topLight.shadow.camera.right = 25;
+topLight.shadow.camera.top = 25;
+topLight.shadow.camera.bottom = -25;
+topLight.shadow.bias = -0.0002;
 scene.add(topLight);
 
 // --- PROCEDURAL PAINT BOOTH TEXTURES ---
 
-// 1. High-Res Cement Texture with Vignette Edge
 function generateCementTexture() {
-    const canvas = document.createElement('canvas');
-    canvas.width = 2048; canvas.height = 2048;
-    const ctx = canvas.getContext('2d');
-    
-    // Base cement grey
-    ctx.fillStyle = '#8a8a8a';
-    ctx.fillRect(0, 0, 2048, 2048);
-    
-    // Generate thousands of noise particles for realistic concrete grain
-    for (let i = 0; i < 200000; i++) {
-        ctx.fillStyle = Math.random() > 0.5 ? 'rgba(255,255,255,0.04)' : 'rgba(0,0,0,0.05)';
-        ctx.fillRect(Math.random() * 2048, Math.random() * 2048, Math.random() * 2 + 1, Math.random() * 2 + 1);
-    }
-    
-    // Ambient Occlusion / Vignette (Darkens the outer edges of the floor)
-    const rGrad = ctx.createRadialGradient(1024, 1024, 400, 1024, 1024, 1300);
-    rGrad.addColorStop(0, 'rgba(0,0,0,0)');
-    rGrad.addColorStop(1, 'rgba(0,0,0,0.7)');
-    ctx.fillStyle = rGrad;
-    ctx.fillRect(0, 0, 2048, 2048);
-    
-    return new THREE.CanvasTexture(canvas);
-}
-
-// 2. White Wall Texture with Corner Gradients
-function generateWallTexture() {
     const canvas = document.createElement('canvas');
     canvas.width = 1024; canvas.height = 1024;
     const ctx = canvas.getContext('2d');
     
-    // Base off-white booth wall
-    ctx.fillStyle = '#e8e8e8'; 
+    // Base cement grey
+    ctx.fillStyle = '#888888';
     ctx.fillRect(0, 0, 1024, 1024);
+    
+    // Generate noise particles for realistic concrete grain
+    for (let i = 0; i < 100000; i++) {
+        ctx.fillStyle = Math.random() > 0.5 ? 'rgba(255,255,255,0.03)' : 'rgba(0,0,0,0.04)';
+        ctx.fillRect(Math.random() * 1024, Math.random() * 1024, Math.random() * 2 + 1, Math.random() * 2 + 1);
+    }
+    
+    // Ambient Occlusion / Vignette (Darkens the outer edges of the floor)
+    const rGrad = ctx.createRadialGradient(512, 512, 200, 512, 512, 650);
+    rGrad.addColorStop(0, 'rgba(0,0,0,0)');
+    rGrad.addColorStop(1, 'rgba(0,0,0,0.7)');
+    ctx.fillStyle = rGrad;
+    ctx.fillRect(0, 0, 1024, 1024);
+    
+    const tex = new THREE.CanvasTexture(canvas);
+    return tex;
+}
+
+function generateWallTexture() {
+    const canvas = document.createElement('canvas');
+    canvas.width = 512; canvas.height = 512;
+    const ctx = canvas.getContext('2d');
+    
+    // Base off-white booth wall
+    ctx.fillStyle = '#ffffff'; 
+    ctx.fillRect(0, 0, 512, 512);
     
     // Vertical shadow gradient (Where wall meets ceiling & floor)
-    const vGrad = ctx.createLinearGradient(0, 0, 0, 1024);
-    vGrad.addColorStop(0, 'rgba(0,0,0,0.5)'); 
-    vGrad.addColorStop(0.1, 'rgba(0,0,0,0)');
-    vGrad.addColorStop(0.9, 'rgba(0,0,0,0)');
-    vGrad.addColorStop(1, 'rgba(0,0,0,0.5)'); 
+    const vGrad = ctx.createLinearGradient(0, 0, 0, 512);
+    vGrad.addColorStop(0, 'rgba(0,0,0,0.6)'); 
+    vGrad.addColorStop(0.15, 'rgba(0,0,0,0)');
+    vGrad.addColorStop(0.85, 'rgba(0,0,0,0)');
+    vGrad.addColorStop(1, 'rgba(0,0,0,0.6)'); 
     ctx.fillStyle = vGrad;
-    ctx.fillRect(0, 0, 1024, 1024);
+    ctx.fillRect(0, 0, 512, 512);
     
     // Horizontal shadow gradient (Where wall meets other walls)
-    const hGrad = ctx.createLinearGradient(0, 0, 1024, 0);
-    hGrad.addColorStop(0, 'rgba(0,0,0,0.5)'); 
-    hGrad.addColorStop(0.1, 'rgba(0,0,0,0)');
-    hGrad.addColorStop(0.9, 'rgba(0,0,0,0)');
-    hGrad.addColorStop(1, 'rgba(0,0,0,0.5)'); 
+    const hGrad = ctx.createLinearGradient(0, 0, 512, 0);
+    hGrad.addColorStop(0, 'rgba(0,0,0,0.6)'); 
+    hGrad.addColorStop(0.15, 'rgba(0,0,0,0)');
+    hGrad.addColorStop(0.85, 'rgba(0,0,0,0)');
+    hGrad.addColorStop(1, 'rgba(0,0,0,0.6)'); 
     ctx.fillStyle = hGrad;
-    ctx.fillRect(0, 0, 1024, 1024);
+    ctx.fillRect(0, 0, 512, 512);
     
     return new THREE.CanvasTexture(canvas);
 }
 
 // Setup the Square Cement Floor Pedestal
-const floorGeo = new THREE.BoxGeometry(60, 0.5, 60);
+const floorGeo = new THREE.BoxGeometry(80, 0.5, 80); // Increased size
 const floorMat = new THREE.MeshStandardMaterial({ 
     color: 0xaaaaaa, 
     map: generateCementTexture(),
@@ -110,11 +111,12 @@ studioFloor.visible = false;
 scene.add(studioFloor);
 
 // Setup the Room/Paint Booth
-const boothGeo = new THREE.BoxGeometry(60, 30, 60);
+const boothGeo = new THREE.BoxGeometry(80, 40, 80); // Increased size
 const boothMat = new THREE.MeshStandardMaterial({
-    color: 0xffffff, 
+    // Off-white base color so HDRI lighting makes it white without blowing out the exposure
+    color: 0xcccccc, 
     map: generateWallTexture(),
-    side: THREE.BackSide, // Draw textures on the INSIDE of the box
+    side: THREE.DoubleSide, // Render both inside and out
     roughness: 1.0,
     metalness: 0.0
 });
@@ -123,11 +125,10 @@ paintBooth.receiveShadow = true;
 paintBooth.visible = false;
 scene.add(paintBooth);
 
-
 const controls = new THREE.OrbitControls(camera, renderer.domElement);
 controls.enableDamping = true;
 controls.dampingFactor = 0.05;
-controls.maxDistance = 28; // Keeps user inside the room!
+controls.maxDistance = 35; // Prevents user from zooming outside the walls of the paint booth
 
 let activeCamView = 'iso'; 
 
@@ -944,8 +945,8 @@ loader.load(
         studioFloor.position.y = updatedBox.min.y - 0.25; 
         studioFloor.visible = true;
         
-        // Position walls so they sit perfectly ON the floor
-        paintBooth.position.y = studioFloor.position.y + 15; 
+        // Position walls so they sit safely around the floor
+        paintBooth.position.y = studioFloor.position.y + 19; 
         paintBooth.visible = true;
 
         const targetMeshes = [];
@@ -1032,17 +1033,16 @@ function animate() {
     requestAnimationFrame(animate); 
     
     // --- CAMERA FLOOR LOCK ---
-    // Mathematically calculates the exact maximum polar angle 
-    // to prevent the camera from going beneath the floor!
     if (studioFloor.visible) {
-        const floorLimit = studioFloor.position.y + 0.75; 
-        const dist = controls.getDistance();
+        // Prevent camera from clipping through the cement pad
+        const floorLimit = studioFloor.position.y + 0.5; 
+        const dist = Math.max(0.1, controls.getDistance());
         const yDiff = floorLimit - controls.target.y;
         
         if (yDiff / dist > -1 && yDiff / dist < 1) {
             controls.maxPolarAngle = Math.acos(yDiff / dist);
         } else {
-            controls.maxPolarAngle = Math.PI / 2 + 0.1;
+            controls.maxPolarAngle = Math.PI / 2;
         }
     }
 
