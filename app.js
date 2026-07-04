@@ -25,11 +25,13 @@ const controls = new THREE.OrbitControls(camera, renderer.domElement);
 controls.enableDamping = true;
 controls.dampingFactor = 0.05;
 
-// Dynamic Camera Framing (Tuned aggressively to clear bottom mobile sheets)
+// Dynamic Camera Framing (Tuned to find the mobile sheet sweet spot)
 function getCamDist() { return window.innerWidth < 650 ? 25 : 10; }
 function getCamOffsetY() { return window.innerWidth < 650 ? -3.5 : -0.2; }
 
 controls.target.set(0, getCamOffsetY(), 0); 
+
+let sideToggleRight = true; // Tracks which side the camera is looking at
 
 function updateCameraTo(view) {
     if (view === 'free') return;
@@ -39,16 +41,14 @@ function updateCameraTo(view) {
     let tZ = 0;
     let cZ = 0;
     
-    // Specifically push the Top View camera backwards along the Z-axis on mobile
-    // This physically shifts the car UP towards the top of the phone screen
+    // Adjusted from 6.5 down to 5.0 for perfect top-down framing
     if (view === 'top' && window.innerWidth < 650) {
-        tZ = 6.5;
-        cZ = 6.5;
+        tZ = 5.0;
+        cZ = 5.0;
     }
     
-    // Elevated height properties (2.5 - 3.0) clear the floor pans cleanly when looking downward
     const views = {
-        side: new THREE.Vector3(d, 2.5, 0),
+        side: new THREE.Vector3(sideToggleRight ? d : -d, 2.5, 0),
         front: new THREE.Vector3(0, 2.5, d),
         back: new THREE.Vector3(0, 2.5, -d),
         top: new THREE.Vector3(0, d, cZ),
@@ -139,6 +139,7 @@ function setMode(mode) {
     clearGhosts();
     controls.enabled = (mode !== 'brush'); 
     
+    // Auto-spawn a preview in the center of the screen so sliders work immediately
     if (mode === 'decal') {
         setTimeout(() => {
             const hit = getIntersection(window.innerWidth / 2, window.innerHeight / 2);
@@ -198,6 +199,12 @@ document.querySelectorAll('.cam-btn').forEach(btn => {
         e.target.classList.add('active');
         
         const view = e.target.getAttribute('data-cam');
+        
+        // Double tapping side toggles between left and right sides
+        if (view === 'side' && activeCamView === 'side') {
+            sideToggleRight = !sideToggleRight; 
+        }
+        
         activeCamView = view;
         ui.mirrorBtn.style.display = (view === 'side') ? 'block' : 'none';
         
@@ -451,32 +458,74 @@ ui.mirrorBtn.addEventListener('click', () => {
     if (activeCamView !== 'side') return;
     
     saveCanvasState();
-    const halfWidth = 1024; const height = 2048;
-    const leftSide = pCtx.getImageData(0, 0, halfWidth, height);
-    const rightSide = pCtx.getImageData(halfWidth, 0, halfWidth, height);
+    const sourceIsRight = camera.position.x > 0;
+    const fullData = pCtx.getImageData(0, 0, 2048, 2048);
     
-    for (let y = 0; y < height; y++) {
-        for (let x = 0; x < halfWidth; x++) {
-            const srcIdx = (y * halfWidth + x) * 4;
-            const tgtIdx = (y * halfWidth + (halfWidth - 1 - x)) * 4;
-            rightSide.data[tgtIdx] = leftSide.data[srcIdx];
-            rightSide.data[tgtIdx+1] = leftSide.data[srcIdx+1];
-            rightSide.data[tgtIdx+2] = leftSide.data[srcIdx+2];
-            rightSide.data[tgtIdx+3] = leftSide.data[srcIdx+3];
+    // 1. Mirror Canvas Painting Correctly (Source to Target Side)
+    for (let y = 0; y < 2048; y++) {
+        for (let x = 0; x < 1024; x++) {
+            const leftIdx = (y * 2048 + x) * 4;
+            const rightIdx = (y * 2048 + (2047 - x)) * 4;
+            
+            if (sourceIsRight) {
+                fullData.data[leftIdx] = fullData.data[rightIdx];
+                fullData.data[leftIdx+1] = fullData.data[rightIdx+1];
+                fullData.data[leftIdx+2] = fullData.data[rightIdx+2];
+                fullData.data[leftIdx+3] = fullData.data[rightIdx+3];
+            } else {
+                fullData.data[rightIdx] = fullData.data[leftIdx];
+                fullData.data[rightIdx+1] = fullData.data[leftIdx+1];
+                fullData.data[rightIdx+2] = fullData.data[leftIdx+2];
+                fullData.data[rightIdx+3] = fullData.data[leftIdx+3];
+            }
         }
     }
-    pCtx.putImageData(rightSide, halfWidth, 0);
+    pCtx.putImageData(fullData, 0, 0);
     textureNeedsGPUUpdate = true;
 
+    // 2. Mirror Decals (Only copy from the camera-facing side)
     while(mirrorDecalGroup.children.length > 0) {
         const child = mirrorDecalGroup.children[0];
         child.geometry.dispose();
         mirrorDecalGroup.remove(child);
     }
     stampHistory.forEach(stamp => {
-        const mPoint = stamp.point.clone(); mPoint.x *= -1;
-        const mNormal = stamp.normal.clone(); mNormal.x *= -1;
-        projectStamp(mPoint, mNormal, -stamp.rot, stamp.size, stamp.shape, stamp.color, stamp.zIndex, false, true);
+        if ((sourceIsRight && stamp.point.x >= -0.01) || (!sourceIsRight && stamp.point.x <= 0.01)) {
+            const mPoint = stamp.point.clone(); mPoint.x *= -1;
+            const mNormal = stamp.normal.clone(); mNormal.x *= -1;
+            projectStamp(mPoint, mNormal, -stamp.rot, stamp.size, stamp.shape, stamp.color, stamp.zIndex, false, true);
+        }
+    });
+    
+    // 3. Mirror Bucket Colors (Matches symmetrical meshes)
+    paintableMeshes.forEach(srcMesh => {
+        if (!srcMesh.geometry.boundingBox) srcMesh.geometry.computeBoundingBox();
+        const center = srcMesh.geometry.boundingBox.getCenter(new THREE.Vector3());
+        center.applyMatrix4(srcMesh.matrixWorld);
+        
+        if ((sourceIsRight && center.x > 0.01) || (!sourceIsRight && center.x < -0.01)) {
+            let bestMatch = null;
+            let minDist = Infinity;
+            
+            paintableMeshes.forEach(tgtMesh => {
+                if (tgtMesh === srcMesh) return;
+                if (!tgtMesh.geometry.boundingBox) tgtMesh.geometry.computeBoundingBox();
+                const tgtCenter = tgtMesh.geometry.boundingBox.getCenter(new THREE.Vector3());
+                tgtCenter.applyMatrix4(tgtMesh.matrixWorld);
+                
+                const expectedX = -center.x;
+                const dist = new THREE.Vector3(expectedX, center.y, center.z).distanceTo(tgtCenter);
+                
+                if (dist < minDist && dist < 0.2) { 
+                    minDist = dist;
+                    bestMatch = tgtMesh;
+                }
+            });
+            
+            if (bestMatch) {
+                bestMatch.material.color.copy(srcMesh.material.color);
+            }
+        }
     });
 });
 
