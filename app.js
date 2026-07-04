@@ -290,6 +290,9 @@ document.querySelectorAll('.cam-btn').forEach(btn => {
         if (view === 'side' && activeCamView === 'side') sideToggleRight = !sideToggleRight; 
         
         updateCameraTo(view);
+        
+        // ADDED TOAST NOTIFICATION HERE
+        showToast('Pinch to zoom on phone or scroll on desktop to free cam!', 4000);
     });
 });
 
