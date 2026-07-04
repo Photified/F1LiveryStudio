@@ -1,7 +1,7 @@
 // --- 1. Scene, Camera, & Renderer ---
 const container = document.getElementById('viewport3d');
 const scene = new THREE.Scene();
-scene.background = new THREE.Color('#121212'); // Dark fallback in case camera clips walls
+scene.background = new THREE.Color('#222222'); // Fallback studio grey
 
 const camera = new THREE.PerspectiveCamera(45, window.innerWidth / window.innerHeight, 0.1, 100);
 const renderer = new THREE.WebGLRenderer({ antialias: true, alpha: true });
@@ -11,25 +11,23 @@ renderer.shadowMap.enabled = true;
 renderer.shadowMap.type = THREE.PCFSoftShadowMap; 
 renderer.outputEncoding = THREE.sRGBEncoding; 
 renderer.toneMapping = THREE.ACESFilmicToneMapping;
-// FIXED: Lowered exposure from 1.0 to 0.85 to prevent the white room from overexposing!
-renderer.toneMappingExposure = 0.85; 
+renderer.toneMappingExposure = 0.9; // Adjusted for perfect paint booth exposure
 
 container.appendChild(renderer.domElement);
 
-// Load Studio Paint Booth Environment
+// Load Studio Paint Booth Environment Reflections
 const pmremGenerator = new THREE.PMREMGenerator(renderer);
 scene.environment = pmremGenerator.fromScene(new THREE.RoomEnvironment(), 0.04).texture;
 
 // Fallback Lights
-scene.add(new THREE.AmbientLight(0xffffff, 0.4)); // Lowered ambient light
+scene.add(new THREE.AmbientLight(0xffffff, 0.5));
 
 // Top spotlight inside the booth
-const topLight = new THREE.DirectionalLight(0xffffff, 0.6); // Lowered directional intensity
+const topLight = new THREE.DirectionalLight(0xffffff, 0.6);
 topLight.position.set(0, 18, 0);
 topLight.castShadow = true;
 topLight.shadow.mapSize.width = 2048;
 topLight.shadow.mapSize.height = 2048;
-// Expanded shadow bounds to cover the larger room
 topLight.shadow.camera.near = 0.5;
 topLight.shadow.camera.far = 40;
 topLight.shadow.camera.left = -25;
@@ -47,24 +45,23 @@ function generateCementTexture() {
     const ctx = canvas.getContext('2d');
     
     // Base cement grey
-    ctx.fillStyle = '#888888';
+    ctx.fillStyle = '#b0b0b0';
     ctx.fillRect(0, 0, 1024, 1024);
     
     // Generate noise particles for realistic concrete grain
-    for (let i = 0; i < 100000; i++) {
-        ctx.fillStyle = Math.random() > 0.5 ? 'rgba(255,255,255,0.03)' : 'rgba(0,0,0,0.04)';
-        ctx.fillRect(Math.random() * 1024, Math.random() * 1024, Math.random() * 2 + 1, Math.random() * 2 + 1);
+    for (let i = 0; i < 80000; i++) {
+        ctx.fillStyle = Math.random() > 0.5 ? 'rgba(255,255,255,0.04)' : 'rgba(0,0,0,0.05)';
+        ctx.fillRect(Math.random() * 1024, Math.random() * 1024, Math.random() * 2, Math.random() * 2);
     }
     
     // Ambient Occlusion / Vignette (Darkens the outer edges of the floor)
-    const rGrad = ctx.createRadialGradient(512, 512, 200, 512, 512, 650);
+    const rGrad = ctx.createRadialGradient(512, 512, 250, 512, 512, 700);
     rGrad.addColorStop(0, 'rgba(0,0,0,0)');
-    rGrad.addColorStop(1, 'rgba(0,0,0,0.7)');
+    rGrad.addColorStop(1, 'rgba(0,0,0,0.4)');
     ctx.fillStyle = rGrad;
     ctx.fillRect(0, 0, 1024, 1024);
     
-    const tex = new THREE.CanvasTexture(canvas);
-    return tex;
+    return new THREE.CanvasTexture(canvas);
 }
 
 function generateWallTexture() {
@@ -72,25 +69,25 @@ function generateWallTexture() {
     canvas.width = 512; canvas.height = 512;
     const ctx = canvas.getContext('2d');
     
-    // Base off-white booth wall
+    // Base white booth wall
     ctx.fillStyle = '#ffffff'; 
     ctx.fillRect(0, 0, 512, 512);
     
     // Vertical shadow gradient (Where wall meets ceiling & floor)
     const vGrad = ctx.createLinearGradient(0, 0, 0, 512);
-    vGrad.addColorStop(0, 'rgba(0,0,0,0.6)'); 
+    vGrad.addColorStop(0, 'rgba(0,0,0,0.4)'); 
     vGrad.addColorStop(0.15, 'rgba(0,0,0,0)');
     vGrad.addColorStop(0.85, 'rgba(0,0,0,0)');
-    vGrad.addColorStop(1, 'rgba(0,0,0,0.6)'); 
+    vGrad.addColorStop(1, 'rgba(0,0,0,0.4)'); 
     ctx.fillStyle = vGrad;
     ctx.fillRect(0, 0, 512, 512);
     
     // Horizontal shadow gradient (Where wall meets other walls)
     const hGrad = ctx.createLinearGradient(0, 0, 512, 0);
-    hGrad.addColorStop(0, 'rgba(0,0,0,0.6)'); 
+    hGrad.addColorStop(0, 'rgba(0,0,0,0.4)'); 
     hGrad.addColorStop(0.15, 'rgba(0,0,0,0)');
     hGrad.addColorStop(0.85, 'rgba(0,0,0,0)');
-    hGrad.addColorStop(1, 'rgba(0,0,0,0.6)'); 
+    hGrad.addColorStop(1, 'rgba(0,0,0,0.4)'); 
     ctx.fillStyle = hGrad;
     ctx.fillRect(0, 0, 512, 512);
     
@@ -98,9 +95,9 @@ function generateWallTexture() {
 }
 
 // Setup the Square Cement Floor Pedestal
-const floorGeo = new THREE.BoxGeometry(80, 0.5, 80); // Increased size
+const floorGeo = new THREE.BoxGeometry(80, 0.5, 80); 
 const floorMat = new THREE.MeshStandardMaterial({ 
-    color: 0xaaaaaa, 
+    color: 0xeeeeee, 
     map: generateCementTexture(),
     roughness: 0.9, 
     metalness: 0.1 
@@ -111,12 +108,11 @@ studioFloor.visible = false;
 scene.add(studioFloor);
 
 // Setup the Room/Paint Booth
-const boothGeo = new THREE.BoxGeometry(80, 40, 80); // Increased size
+const boothGeo = new THREE.BoxGeometry(80, 40, 80); 
 const boothMat = new THREE.MeshStandardMaterial({
-    // Off-white base color so HDRI lighting makes it white without blowing out the exposure
-    color: 0xcccccc, 
+    color: 0xeeeeee, 
     map: generateWallTexture(),
-    side: THREE.DoubleSide, // Render both inside and out
+    side: THREE.DoubleSide, 
     roughness: 1.0,
     metalness: 0.0
 });
@@ -128,7 +124,9 @@ scene.add(paintBooth);
 const controls = new THREE.OrbitControls(camera, renderer.domElement);
 controls.enableDamping = true;
 controls.dampingFactor = 0.05;
-controls.maxDistance = 35; // Prevents user from zooming outside the walls of the paint booth
+controls.maxDistance = 35; // Keeps user inside the room
+// FIXED: Static, rock-solid angle lock prevents camera from going under the floor
+controls.maxPolarAngle = Math.PI / 2 - 0.05; 
 
 let activeCamView = 'iso'; 
 
@@ -277,7 +275,6 @@ function setMode(mode) {
     clearGhosts();
     controls.enabled = (mode !== 'brush'); 
     
-    // Toast Prompts based on tool
     if (mode === 'brush') showToast('Brush Mode: Draw directly on the car', 3000);
     else if (mode === 'bucket') showToast('Bucket Mode: Click a part to fill it', 3000);
     else if (mode === 'decal') showToast('Step 1: Click on the car to place a Decal', 0);
@@ -906,7 +903,7 @@ ui.resetBtn.addEventListener('click', () => {
     showToast('Car Reset to Factory Settings', 2000);
 });
 
-// --- 6. GLTF Car Asset Loader with Auto-Scaler & Loop Fix ---
+// --- 6. GLTF Car Asset Loader ---
 const loader = new THREE.GLTFLoader();
 const textureLoader = new THREE.TextureLoader();
 
@@ -1031,21 +1028,6 @@ window.addEventListener('resize', () => {
 
 function animate() { 
     requestAnimationFrame(animate); 
-    
-    // --- CAMERA FLOOR LOCK ---
-    if (studioFloor.visible) {
-        // Prevent camera from clipping through the cement pad
-        const floorLimit = studioFloor.position.y + 0.5; 
-        const dist = Math.max(0.1, controls.getDistance());
-        const yDiff = floorLimit - controls.target.y;
-        
-        if (yDiff / dist > -1 && yDiff / dist < 1) {
-            controls.maxPolarAngle = Math.acos(yDiff / dist);
-        } else {
-            controls.maxPolarAngle = Math.PI / 2;
-        }
-    }
-
     if (controls.enabled) controls.update(); 
     
     if (textureNeedsGPUUpdate) {
