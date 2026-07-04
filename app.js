@@ -8,8 +8,6 @@ const renderer = new THREE.WebGLRenderer({ antialias: true, alpha: true });
 renderer.setSize(window.innerWidth, window.innerHeight);
 renderer.setPixelRatio(Math.min(window.devicePixelRatio, 2));
 renderer.shadowMap.enabled = true;
-
-// FIX: Force sRGB color encoding so hex colors match the UI exactly
 renderer.outputEncoding = THREE.sRGBEncoding; 
 
 container.appendChild(renderer.domElement);
@@ -29,13 +27,12 @@ const controls = new THREE.OrbitControls(camera, renderer.domElement);
 controls.enableDamping = true;
 controls.dampingFactor = 0.05;
 
-// Dynamic Camera Framing (Tuned to find the mobile sheet sweet spot)
 function getCamDist() { return window.innerWidth < 650 ? 25 : 10; }
 function getCamOffsetY() { return window.innerWidth < 650 ? -3.5 : -0.2; }
 
 controls.target.set(0, getCamOffsetY(), 0); 
 
-let sideToggleRight = true; // Tracks which side the camera is looking at
+let sideToggleRight = true; 
 
 function updateCameraTo(view) {
     if (view === 'free') return;
@@ -68,25 +65,20 @@ updateCameraTo('iso');
 
 // --- 2. Advanced Layer Stacking Framework ---
 const mainDecalGroup = new THREE.Group();
-const mirrorDecalGroup = new THREE.Group();
 const ghostDecalGroup = new THREE.Group(); 
 
 scene.add(mainDecalGroup);
-scene.add(mirrorDecalGroup);
 scene.add(ghostDecalGroup);
 
 let globalRenderOrder = 1; 
 let stampHistory = []; 
 const actionHistory = []; 
 
-// Texture Throttling System 
 const paintCanvas = document.createElement('canvas');
 paintCanvas.width = 2048; paintCanvas.height = 2048;
 const pCtx = paintCanvas.getContext('2d');
 const canvasTexture = new THREE.CanvasTexture(paintCanvas);
 canvasTexture.flipY = false;
-
-// FIX: Ensure the main canvas texture respects the sRGB true colors
 canvasTexture.encoding = THREE.sRGBEncoding; 
 let textureNeedsGPUUpdate = false; 
 
@@ -125,7 +117,6 @@ const ui = {
     decalRot: document.getElementById('decalRot'),
     decalSize: document.getElementById('toolSize'),
     commitDecalBtn: document.getElementById('commitDecalBtn'),
-    mirrorBtn: document.getElementById('mirrorBtn'),
     undoBtn: document.getElementById('undoBtn'),
     resetBtn: document.getElementById('resetBtn'),
     helpBtn: document.getElementById('helpBtn'),
@@ -208,7 +199,6 @@ document.querySelectorAll('.cam-btn').forEach(btn => {
         }
         
         activeCamView = view;
-        ui.mirrorBtn.style.display = (view === 'side') ? 'block' : 'none';
         
         if (view === 'free') setMode('camera');
         else updateCameraTo(view);
@@ -274,8 +264,6 @@ function getDecalMaterial(type, color) {
 
     const texture = new THREE.CanvasTexture(dCanvas);
     texture.anisotropy = renderer.capabilities.getMaxAnisotropy();
-    
-    // FIX: Decals need to respect sRGB encoding too
     texture.encoding = THREE.sRGBEncoding;
 
     const mat = new THREE.MeshStandardMaterial({
@@ -305,8 +293,6 @@ function getIntersection(clientX, clientY) {
 function executeUVBrush(hit) {
     if (!hit.uv) return;
     
-    // FIX: If the user brushes over a panel they previously bucket-filled, 
-    // force the underlying material color back to white so the brush color isn't multiplied/muddied!
     if (hit.object && hit.object.material && hit.object.material.color.getHex() !== 0xffffff) {
         hit.object.material.color.setHex(0xffffff);
     }
@@ -325,7 +311,7 @@ function executeUVBrush(hit) {
     }
 }
 
-function projectStamp(point, normal, rotation, size, shape, color, zIndex, isPreview = false, isMirrored = false) {
+function projectStamp(point, normal, rotation, size, shape, color, zIndex, isPreview = false) {
     const dummy = new THREE.Object3D();
     dummy.position.copy(point);
     dummy.lookAt(point.clone().add(normal));
@@ -351,7 +337,7 @@ function projectStamp(point, normal, rotation, size, shape, color, zIndex, isPre
         }
     });
 
-    const targetGroup = isPreview ? ghostDecalGroup : (isMirrored ? mirrorDecalGroup : mainDecalGroup);
+    const targetGroup = isPreview ? ghostDecalGroup : mainDecalGroup;
     meshes.forEach(m => {
         targetGroup.add(m);
     });
@@ -453,7 +439,7 @@ ui.commitDecalBtn.addEventListener('click', () => {
         const sizeVal = parseInt(ui.decalSize.value) / 100;
         const targetShape = ui.decalType.value;
 
-        const meshes = projectStamp(liveDecalHitData.point, liveDecalHitData.normal, rotVal, sizeVal, targetShape, currentColor, globalRenderOrder, false, false);
+        const meshes = projectStamp(liveDecalHitData.point, liveDecalHitData.normal, rotVal, sizeVal, targetShape, currentColor, globalRenderOrder, false);
         stampHistory.push({ point: liveDecalHitData.point.clone(), normal: liveDecalHitData.normal.clone(), rot: rotVal, size: sizeVal, shape: targetShape, color: currentColor, zIndex: globalRenderOrder });
         
         actionHistory.push({ type: 'decal', meshes: meshes });
@@ -462,79 +448,6 @@ ui.commitDecalBtn.addEventListener('click', () => {
         clearGhosts();
         liveDecalHitData = null; 
     }
-});
-
-// --- Action Commands ---
-ui.mirrorBtn.addEventListener('click', () => {
-    if (activeCamView !== 'side') return;
-    
-    saveCanvasState();
-    const sourceIsRight = camera.position.x > 0;
-    const fullData = pCtx.getImageData(0, 0, 2048, 2048);
-    
-    for (let y = 0; y < 2048; y++) {
-        for (let x = 0; x < 1024; x++) {
-            const leftIdx = (y * 2048 + x) * 4;
-            const rightIdx = (y * 2048 + (2047 - x)) * 4;
-            
-            if (sourceIsRight) {
-                fullData.data[leftIdx] = fullData.data[rightIdx];
-                fullData.data[leftIdx+1] = fullData.data[rightIdx+1];
-                fullData.data[leftIdx+2] = fullData.data[rightIdx+2];
-                fullData.data[leftIdx+3] = fullData.data[rightIdx+3];
-            } else {
-                fullData.data[rightIdx] = fullData.data[leftIdx];
-                fullData.data[rightIdx+1] = fullData.data[leftIdx+1];
-                fullData.data[rightIdx+2] = fullData.data[leftIdx+2];
-                fullData.data[rightIdx+3] = fullData.data[leftIdx+3];
-            }
-        }
-    }
-    pCtx.putImageData(fullData, 0, 0);
-    textureNeedsGPUUpdate = true;
-
-    while(mirrorDecalGroup.children.length > 0) {
-        const child = mirrorDecalGroup.children[0];
-        child.geometry.dispose();
-        mirrorDecalGroup.remove(child);
-    }
-    stampHistory.forEach(stamp => {
-        if ((sourceIsRight && stamp.point.x >= -0.01) || (!sourceIsRight && stamp.point.x <= 0.01)) {
-            const mPoint = stamp.point.clone(); mPoint.x *= -1;
-            const mNormal = stamp.normal.clone(); mNormal.x *= -1;
-            projectStamp(mPoint, mNormal, -stamp.rot, stamp.size, stamp.shape, stamp.color, stamp.zIndex, false, true);
-        }
-    });
-    
-    paintableMeshes.forEach(srcMesh => {
-        if (!srcMesh.geometry.boundingBox) srcMesh.geometry.computeBoundingBox();
-        const center = srcMesh.geometry.boundingBox.getCenter(new THREE.Vector3());
-        center.applyMatrix4(srcMesh.matrixWorld);
-        
-        if ((sourceIsRight && center.x > 0.01) || (!sourceIsRight && center.x < -0.01)) {
-            let bestMatch = null;
-            let minDist = Infinity;
-            
-            paintableMeshes.forEach(tgtMesh => {
-                if (tgtMesh === srcMesh) return;
-                if (!tgtMesh.geometry.boundingBox) tgtMesh.geometry.computeBoundingBox();
-                const tgtCenter = tgtMesh.geometry.boundingBox.getCenter(new THREE.Vector3());
-                tgtCenter.applyMatrix4(tgtMesh.matrixWorld);
-                
-                const expectedX = -center.x;
-                const dist = new THREE.Vector3(expectedX, center.y, center.z).distanceTo(tgtCenter);
-                
-                if (dist < minDist && dist < 0.2) { 
-                    minDist = dist;
-                    bestMatch = tgtMesh;
-                }
-            });
-            
-            if (bestMatch) {
-                bestMatch.material.color.copy(srcMesh.material.color);
-            }
-        }
-    });
 });
 
 ui.undoBtn.addEventListener('click', () => {
@@ -560,7 +473,6 @@ ui.resetBtn.addEventListener('click', () => {
     resetToTextureDefaults();
     clearGhosts();
     while(mainDecalGroup.children.length > 0) { mainDecalGroup.children[0].geometry.dispose(); mainDecalGroup.remove(mainDecalGroup.children[0]); }
-    while(mirrorDecalGroup.children.length > 0) { mirrorDecalGroup.children[0].geometry.dispose(); mirrorDecalGroup.remove(mirrorDecalGroup.children[0]); }
     
     stampHistory.length = 0;
     globalRenderOrder = 1;
